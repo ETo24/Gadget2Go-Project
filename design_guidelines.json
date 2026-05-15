@@ -1,0 +1,124 @@
+{
+  "project_name": "Gadget2Go (G2G)",
+  "motto": "Bridging People, Bridging Tech",
+  "theme": {
+    "mode": "hybrid",
+    "primary_archetype": "Archetype 4: Swiss & High-Contrast (Adapted for Apple-like clean design)",
+    "description": "A modern tech marketplace UI that blends CompAsia's trustworthiness, Carousell's community feel, and Apple's clean aesthetic. Prioritizes soft depth, airy spacing, and glassmorphism elements over a stark background. High contrast for readability."
+  },
+  "colors": {
+    "brand": {
+      "primary": "#0B1F3A",
+      "primary_foreground": "#FFFFFF",
+      "accent": "#14B8A6",
+      "accent_foreground": "#FFFFFF"
+    },
+    "light_mode": {
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "border": "#E2E8F0",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444"
+    },
+    "dark_mode": {
+      "background": "#020617",
+      "surface": "#0F172A",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "border": "#1E293B",
+      "success": "#059669",
+      "warning": "#D97706",
+      "error": "#DC2626"
+    },
+    "rules": {
+      "cta": "Use Navy Blue (#0B1F3A) for primary actions like 'Buy Now' or 'Submit'. Use Teal (#14B8A6) for AI-powered features, verified badges, and secondary highlights.",
+      "hover_states": "Always use a lighter or darker shade of the active color. e.g. hover:bg-[#142B4A] for Navy Blue.",
+      "gradients": "Avoid full-screen gradients. Use subtle radial gradients in backgrounds for the AI Valuation page only."
+    }
+  },
+  "typography": {
+    "strategy": "The 'Soft Utility' - Rounded, friendly, yet tech-forward.",
+    "fonts": {
+      "headings": "Outfit, sans-serif",
+      "body": "Plus Jakarta Sans, sans-serif"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-bold text-slate-900 dark:text-white",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-semibold text-slate-900 dark:text-white",
+      "h3": "text-xl sm:text-2xl font-semibold text-slate-800 dark:text-slate-100",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-slate-500 dark:text-slate-400",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-teal-600 dark:text-teal-400"
+    },
+    "rules": "Never use Inter. Use tracking-tight on all headings above 32px. Use leading-relaxed for body text for optimal readability."
+  },
+  "spacing_and_layout": {
+    "system": "Generous Spacing Philosophy (Tailwind Scale)",
+    "rules": [
+      "Use p-6 or p-8 for standard cards. No cramped content.",
+      "Mobile-first: default to grid-cols-1, use gap-6 or gap-8.",
+      "Use Bento-style grids for the Home page (Categories, Featured, AI showcase). Combine square and tall spans to create visual tension.",
+      "Mobile navigation: Bottom Tab Bar (Home, Buy, Sell, Chat, Profile).",
+      "Desktop navigation: Sticky Sidebar or Top Nav with Crystal Glassmorphism."
+    ]
+  },
+  "surfaces": {
+    "cards": "Apple-style flat surface with soft ambient shadow. Light mode: bg-white shadow-[0_4px_24px_rgba(0,0,0,0.04)] rounded-2xl or rounded-3xl. Dark mode: bg-slate-900 border border-slate-800 rounded-2xl.",
+    "glassmorphism": "Use for sticky headers and bottom navs. backdrop-blur-xl bg-white/70 (Light) or bg-slate-950/70 (Dark). Must include a subtle 1px border on the edge.",
+    "ai_elements": "Use 'The Tracing Beam' or subtle glowing borders (border-teal-500/30 with drop-shadow) to indicate AI valuation or smart matching."
+  },
+  "motion": {
+    "rules": [
+      "Smooth page transitions using Framer Motion (fade and slide up).",
+      "Hover effects on product cards: slight lift (-translate-y-1) and shadow increase.",
+      "Animated statistics/numbers counting up for Trust Stats and AI Valuation.",
+      "AI Valuation scanning animation: a line sweeping across the gadget image."
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Use stroke-width 1.5 for a clean, premium Apple-like feel."
+  },
+  "media": {
+    "hero_and_featured": [
+      {
+        "url": "https://images.unsplash.com/photo-1426024084828-5da21e13f5dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHwyfHxzbWFydHBob25lcyUyMGFuZCUyMGxhcHRvcHN8ZW58MHx8fHwxNzc4ODI5OTk5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "MacBook Pro beside iPad and iPhone turned on - Use for Main Hero Section"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHwxfHxzbWFydHBob25lcyUyMGFuZCUyMGxhcHRvcHN8ZW58MHx8fHwxNzc4ODI5OTk5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "White smartphone near laptop - Use for 'Sell Smart' block"
+      }
+    ],
+    "people_and_testimonials": [
+      {
+        "url": "https://images.unsplash.com/photo-1625463006115-09f08489f591?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwyfHxoYXBweSUyMGRpdmVyc2UlMjBwZW9wbGUlMjB1c2luZyUyMHNtYXJ0cGhvbmV8ZW58MHx8fHwxNzc4ODI5OTk5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Happy couple using phone - Use for buyer/seller testimonials"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1589483232748-515c025575bc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHw0fHxoYXBweSUyMGRpdmVyc2UlMjBwZW9wbGUlMjB1c2luZyUyMHNtYXJ0cGhvbmV8ZW58MHx8fHwxNzc4ODI5OTk5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Diverse group of women - Use for Community/Trust section"
+      }
+    ],
+    "abstract_and_ai": [
+      {
+        "url": "https://images.unsplash.com/photo-1579548122080-c35fd6820ecb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5hdnklMjBibHVlJTIwYW5kJTIwdGVhbCUyMHRlY2hub2xvZ3klMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3ODgyOTk5OXww&ixlib=rb-4.1.0&q=85",
+        "description": "Blue and black digital wallpaper - Use as background for AI Valuation showcase"
+      }
+    ]
+  },
+  "components_instructions": {
+    "Navigation": "Implement a bottom tab bar for mobile (fixed bottom, z-50, glassmorphism) with icons for Home, Buy, Sell, Chat, Profile. For desktop, use a left sidebar or a top nav that becomes sticky.",
+    "Bento_Grid_Home": "Create a CSS Grid (md:grid-cols-3 lg:grid-cols-4) with gap-6. Mix large hero spans (col-span-2 row-span-2) for featured deals, and smaller squares for categories.",
+    "Product_Card": "Rounded corners (rounded-2xl), image on top (aspect-square object-cover), condition badge floating on image. Below: Title, Price, AI Fair Price indicator (Teal), and Seller Rating.",
+    "AI_Valuation_Page": "Use a dark, tech-focused layout. Add animated charts (recharts) showing price trends. Include a 'Demand Meter' progress bar. Animate the device scanning process using Framer Motion (a sweeping translucent line).",
+    "Chat_UI": "Split-pane layout on desktop (list on left, active chat on right). Mobile uses list view leading to full-screen chat. Include quick-reply chips and an 'Make Offer' action button at the top.",
+    "Sell_Flow": "Multi-step form using ShadCN components. Step 1: Device type. Step 2: Upload images. Step 3: Condition details. Step 4: AI Valuation Result screen with pricing recommendations before final publish.",
+    "Trust_Badges": "Use Lucide icons (ShieldCheck, BadgeCheck) with Teal color to denote verified sellers, inspected items, and secure escrow.",
+    "Testing": "All interactive elements (buttons, links, inputs) MUST have a data-testid attribute formatted in kebab-case."
+  }
+}
