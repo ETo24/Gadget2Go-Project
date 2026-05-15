@@ -1,53 +1,59 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import React from 'react';
+import './App.css';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AppProvider, useApp } from './context/AppContext';
+import { Toaster } from './components/ui/sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import Layout from './components/Layout';
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import OTPVerify from './pages/OTPVerify';
+import Dashboard from './pages/Dashboard';
+import Buy from './pages/Buy';
+import ProductDetail from './pages/ProductDetail';
+import Sell from './pages/Sell';
+import AIValuation from './pages/AIValuation';
+import Chat from './pages/Chat';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import Notifications from './pages/Notifications';
+import NotFound from './pages/NotFound';
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+function Protected({ children }) {
+  const { user } = useApp();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Layout>{children}</Layout>;
+}
 
 function App() {
   return (
-    <div className="App">
+    <AppProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/otp" element={<OTPVerify />} />
+
+          <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+          <Route path="/buy" element={<Protected><Buy /></Protected>} />
+          <Route path="/buy/:id" element={<Protected><ProductDetail /></Protected>} />
+          <Route path="/sell" element={<Protected><Sell /></Protected>} />
+          <Route path="/valuation" element={<Protected><AIValuation /></Protected>} />
+          <Route path="/chat" element={<Protected><Chat /></Protected>} />
+          <Route path="/chat/:id" element={<Protected><Chat /></Protected>} />
+          <Route path="/profile" element={<Protected><Profile /></Protected>} />
+          <Route path="/settings" element={<Protected><Settings /></Protected>} />
+          <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
+
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </div>
+      <Toaster position="top-right" richColors />
+    </AppProvider>
   );
 }
 
