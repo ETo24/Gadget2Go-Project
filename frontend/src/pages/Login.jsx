@@ -94,7 +94,7 @@ export default function Login() {
           </label>
           <Link to="/forgot-password" className="text-sm font-medium text-teal-700 hover:underline" data-testid="forgot-link">Forgot password?</Link>
         </div>
-        <Button data-testid="login-submit" disabled={loading} className="h-12 w-full rounded-xl bg-navy text-base hover:bg-navy-700">
+        <Button type="submit" data-testid="login-submit" disabled={loading} className="h-12 w-full rounded-xl bg-navy text-base hover:bg-navy-700">
           {loading ? 'Signing in…' : <>Sign in <ArrowRight className="ml-2 h-4 w-4" /></>}
         </Button>
         <div className="my-2 flex items-center gap-3 text-xs text-muted-foreground">
