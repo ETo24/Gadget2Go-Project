@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Upload, Sparkles, Check, CheckCircle2, Smartphone, Tablet, Laptop, Gamepad2, Watch, Headphones, X } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Upload, Sparkles, Check, CheckCircle2, Smartphone, Tablet, Laptop, Gamepad2, Watch, Headphones, X, ShieldAlert } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -12,6 +12,8 @@ import { Slider } from '../components/ui/slider';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import { CONDITION_GRADES, valuateDevice } from '../lib/mockData';
+import { api } from '../lib/api';
+import { useApp } from '../context/AppContext';
 
 const DEVICE_TYPES = [
   { id: 'phones', label: 'Phone', icon: Smartphone },
@@ -21,42 +23,91 @@ const DEVICE_TYPES = [
   { id: 'smartwatches', label: 'Smartwatch', icon: Watch },
   { id: 'accessories', label: 'Accessory', icon: Headphones },
 ];
-
 const STEPS = ['Device', 'Photos', 'Details', 'AI Valuation', 'Method', 'Publish'];
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
 
 export default function Sell() {
   const navigate = useNavigate();
+  const { user, coords } = useApp();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     type: '', images: [], brand: 'Apple', model: '', storage: '128GB', ram: '8GB',
     batteryHealth: 90, condition: 'A', warranty: 'No', description: '',
-    method: 'both', valuation: null,
+    method: 'both', valuation: null, ownershipProof: null,
   });
+  const [publishing, setPublishing] = useState(false);
 
+  const kycApproved = user?.kycStatus === 'approved';
   const update = (k, v) => setData(d => ({ ...d, [k]: v }));
+
+  if (!kycApproved) {
+    return (
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="bento-card p-10">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-amber-100 text-amber-700 dark:bg-amber-500/20"><ShieldAlert className="h-8 w-8" /></div>
+          <h1 className="mt-4 font-heading text-3xl font-bold">Verify your identity to sell</h1>
+          <p className="mt-2 text-muted-foreground">G2G requires sellers to complete a quick identity verification. This protects buyers from scams and builds your Trust Score.</p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Button onClick={() => navigate('/verification')} data-testid="goto-kyc" className="rounded-full bg-navy hover:bg-navy-700">Start verification</Button>
+            <Button variant="outline" onClick={() => navigate('/buy')} className="rounded-full">Continue browsing</Button>
+          </div>
+          {user?.kycStatus === 'pending' && <p className="mt-4 text-sm text-amber-700">Your verification is pending review. We'll notify you within 24h.</p>}
+        </div>
+      </div>
+    );
+  }
 
   const next = () => {
     if (step === 0 && !data.type) return toast.error('Choose a device type');
     if (step === 1 && data.images.length === 0) return toast.error('Upload at least 1 photo');
     if (step === 2 && (!data.brand || !data.model)) return toast.error('Enter brand & model');
-    if (step === 2) {
-      const v = valuateDevice(data);
-      update('valuation', v);
-    }
+    if (step === 2) update('valuation', valuateDevice(data));
     setStep(s => Math.min(STEPS.length - 1, s + 1));
   };
   const back = () => setStep(s => Math.max(0, s - 1));
 
-  const onFiles = (e) => {
+  const onFiles = async (e) => {
     const files = Array.from(e.target.files || []);
-    const urls = files.map(f => URL.createObjectURL(f));
+    const urls = await Promise.all(files.map(fileToDataUrl));
     update('images', [...data.images, ...urls].slice(0, 6));
+  };
+  const onProofFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    update('ownershipProof', await fileToDataUrl(f));
   };
   const removeImage = (i) => update('images', data.images.filter((_, x) => x !== i));
 
-  const publish = () => {
-    toast.success('Listing published! Your gadget is live on G2G.');
-    setTimeout(() => navigate('/dashboard'), 600);
+  const publish = async () => {
+    setPublishing(true);
+    try {
+      const payload = {
+        title: `${data.brand} ${data.model} ${data.storage}`.trim(),
+        category: data.type,
+        brand: data.brand, model: data.model,
+        storage: data.storage, ram: data.ram,
+        batteryHealth: data.batteryHealth, condition: data.condition,
+        warranty: data.warranty, description: data.description,
+        price: data.valuation?.recommended || 500,
+        aiFair: data.valuation?.fair || 500,
+        images: data.images,
+        location: user?.location || 'Singapore',
+        lat: coords.lat, lon: coords.lon,
+        method: data.method,
+      };
+      await api.post('/listings', payload);
+      toast.success('Listing published! Your gadget is live on G2G.');
+      setTimeout(() => navigate('/dashboard'), 600);
+    } catch (e) { toast.error(e.message); }
+    finally { setPublishing(false); }
   };
 
   return (
@@ -72,7 +123,6 @@ export default function Sell() {
         </div>
       </div>
 
-      {/* Stepper */}
       <div className="mt-6 hidden gap-2 lg:flex">
         {STEPS.map((s, i) => (
           <div key={s} className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${i < step ? 'bg-teal-500/10 text-teal-700' : i === step ? 'bg-navy text-white' : 'bg-muted text-muted-foreground'}`}>
@@ -101,7 +151,7 @@ export default function Sell() {
             {step === 1 && (
               <div>
                 <h2 className="font-heading text-2xl font-bold">Add photos</h2>
-                <p className="text-sm text-muted-foreground">High-quality photos sell 3x faster. Add up to 6 images.</p>
+                <p className="text-sm text-muted-foreground">High-quality photos sell 3x faster. Up to 6 images.</p>
                 <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4">
                   {data.images.map((src, i) => (
                     <div key={i} className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
@@ -116,6 +166,18 @@ export default function Sell() {
                       <input type="file" accept="image/*" multiple className="hidden" onChange={onFiles} />
                     </label>
                   )}
+                </div>
+
+                <div className="mt-8 bento-card border-teal-500/30 p-5">
+                  <p className="font-heading font-semibold">Proof of ownership <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-500/10 dark:text-teal-400">RECOMMENDED</span></p>
+                  <p className="mt-1 text-xs text-muted-foreground">Upload a receipt, box photo, or device IMEI screenshot. Boosts your trust by +5 and helps prevent fraud.</p>
+                  <div className="mt-3 flex items-center gap-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm hover:bg-muted" data-testid="proof-upload">
+                      <Upload className="h-4 w-4" /> Upload proof
+                      <input type="file" accept="image/*" className="hidden" onChange={onProofFile} />
+                    </label>
+                    {data.ownershipProof && <span className="text-xs text-teal-700">Uploaded ✓</span>}
+                  </div>
                 </div>
               </div>
             )}
@@ -237,7 +299,7 @@ export default function Sell() {
           {step < STEPS.length - 1 ? (
             <Button onClick={next} data-testid="sell-next" className="h-11 rounded-full bg-navy px-6 hover:bg-navy-700">{step === 2 ? 'Run AI valuation' : 'Continue'}<ChevronRight className="ml-1 h-4 w-4" /></Button>
           ) : (
-            <Button onClick={publish} data-testid="sell-publish" className="h-11 rounded-full bg-teal-500 px-6 hover:bg-teal-600">Publish listing</Button>
+            <Button onClick={publish} disabled={publishing} data-testid="sell-publish" className="h-11 rounded-full bg-teal-500 px-6 hover:bg-teal-600">{publishing ? 'Publishing…' : 'Publish listing'}</Button>
           )}
         </div>
       </div>

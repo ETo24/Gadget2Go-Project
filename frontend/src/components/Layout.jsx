@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingBag, Plus, MessageCircle, User, Sparkles, Settings as SettingsIcon, Bell, LayoutDashboard, Wallet, ShieldCheck, LogOut, Sun, Moon, Search } from 'lucide-react';
+import { Home, ShoppingBag, Plus, MessageCircle, User, Sparkles, Settings as SettingsIcon, Bell, LayoutDashboard, Wallet, ShieldCheck, LogOut, Sun, Moon, Search, Scan, BadgeCheck, Store } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -12,8 +12,12 @@ const sideItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/buy', label: 'Buy', icon: ShoppingBag },
   { to: '/sell', label: 'Sell', icon: Plus },
+  { to: '/match', label: 'Smart Match', icon: Scan },
   { to: '/valuation', label: 'AI Valuation', icon: Sparkles },
   { to: '/chat', label: 'Chat', icon: MessageCircle },
+  { to: '/wallet', label: 'Wallet & Orders', icon: Wallet },
+  { to: '/validation', label: 'Device Validation', icon: BadgeCheck },
+  { to: '/verification', label: 'Verify ID', icon: ShieldCheck },
   { to: '/notifications', label: 'Notifications', icon: Bell },
   { to: '/profile', label: 'Profile', icon: User },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
@@ -34,7 +38,6 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Top bar */}
       <header className="sticky top-0 z-40 glass-strong border-b border-border/60">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
           <Link to="/dashboard" className="flex items-center gap-2" data-testid="brand-logo">
@@ -76,6 +79,7 @@ export default function Layout({ children }) {
                       <AvatarFallback>{user.name?.[0] || 'U'}</AvatarFallback>
                     </Avatar>
                     <span className="hidden text-sm font-medium sm:inline">{user.name}</span>
+                    {user.role === 'dealer' && <Store className="hidden h-3 w-3 text-teal-600 sm:inline" />}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -88,6 +92,8 @@ export default function Layout({ children }) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate('/profile')} data-testid="menu-profile"><User className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/dashboard')} data-testid="menu-dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/wallet')} data-testid="menu-wallet"><Wallet className="mr-2 h-4 w-4" />Wallet</DropdownMenuItem>
+                  {user.role === 'admin' && <DropdownMenuItem onClick={() => navigate('/admin')} data-testid="menu-admin"><ShieldCheck className="mr-2 h-4 w-4" />Admin</DropdownMenuItem>}
                   <DropdownMenuItem onClick={() => navigate('/settings')} data-testid="menu-settings"><SettingsIcon className="mr-2 h-4 w-4" />Settings</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => { logout(); navigate('/'); }} data-testid="menu-logout"><LogOut className="mr-2 h-4 w-4" />Sign out</DropdownMenuItem>
@@ -101,9 +107,8 @@ export default function Layout({ children }) {
       </header>
 
       <div className="mx-auto flex max-w-[1400px] gap-6 px-4 py-6 sm:px-6">
-        {/* Desktop sidebar */}
         <aside className="hidden w-60 shrink-0 lg:block">
-          <nav className="sticky top-24 space-y-1">
+          <nav className="sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto space-y-1 pr-2">
             {sideItems.map((it) => (
               <NavLink
                 key={it.to}
@@ -132,13 +137,12 @@ export default function Layout({ children }) {
                 <ShieldCheck className="h-4 w-4" />
                 <p className="text-xs font-semibold uppercase tracking-wider">Trust Score</p>
               </div>
-              <p className="mt-2 font-heading text-2xl font-bold">{user?.trustScore ?? 96}/100</p>
-              <p className="text-xs text-white/60">Verified by Cybridge</p>
+              <p className="mt-2 font-heading text-2xl font-bold">{user?.trustScore ?? 50}/100</p>
+              <p className="text-xs text-white/60">{user?.trustLabel || 'Verified by Cybridge'}</p>
             </div>
           </nav>
         </aside>
 
-        {/* Main */}
         <motion.main
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}
@@ -150,7 +154,6 @@ export default function Layout({ children }) {
         </motion.main>
       </div>
 
-      {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong border-t border-border/60">
         <div className="mx-auto flex max-w-[1400px] items-stretch justify-around px-2 py-2">
           {mobileTabs.map((t) => (
