@@ -125,3 +125,10 @@ h1, h2, h3, h4, h5, h6 {
     border-left-color: inherit; border-right-color: inherit; border-top-color: inherit; border-bottom-color: inherit;
   }
 }
+[class*="emergent"],
+[id*="emergent"],
+iframe[src*="emergent"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
