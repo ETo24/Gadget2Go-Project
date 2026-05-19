@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, Share2, MapPin, BadgeCheck, Star, ShieldCheck, MessageCircle, Sparkles, ChevronLeft, Battery, Cpu, HardDrive, Package, Truck, RotateCcw, Flag, Ban, Store, AlertTriangle } from 'lucide-react';
+import { Heart, Share2, MapPin, BadgeCheck, Star, ShieldCheck, MessageCircle, Sparkles, ChevronLeft, Battery, Cpu, HardDrive, Package, Truck, RotateCcw, Flag, Store, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
@@ -18,7 +18,7 @@ import { useApp } from '../context/AppContext';
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { saved, toggleSaved, addRecentlyViewed, user } = useApp();
+  const { isLiked, toggleLike, addRecentlyViewed, user } = useApp();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(0);
@@ -35,7 +35,7 @@ export default function ProductDetail() {
   );
   if (!product) return <div className="p-10 text-center"><p>Listing not found.</p><Link to="/buy" className="text-teal-700 underline">Back to marketplace</Link></div>;
 
-  const isSaved = saved.includes(product.id);
+  const liked = isLiked(product.id);
   const cond = CONDITION_GRADES.find(c => c.id === product.condition);
   const aiDelta = (product.aiFair || product.price) - product.price;
   const seller = product.seller || {};
@@ -50,12 +50,12 @@ export default function ProductDetail() {
   };
   const submitReport = async () => {
     if (!reportReason.trim()) return toast.error('Tell us what went wrong');
-    try { await api.post('/reports', { targetId: seller.id, targetType: 'user', reason: reportReason }); toast.success('Report sent to G2G team.'); setReportOpen(false); }
-    catch (e) { toast.error(e.message); }
-  };
-  const blockUser = async () => {
-    try { await api.post('/blocks', { userId: seller.id }); toast.success(`${seller.name} blocked.`); }
-    catch (e) { toast.error(e.message); }
+    try {
+      await api.post('/reports', { targetId: seller.id, targetType: 'user', listingId: product.id, reason: reportReason });
+      toast.success('Report sent to G2G admin team.');
+      setReportOpen(false);
+      setReportReason('');
+    } catch (e) { toast.error(e.message); }
   };
 
   return (
@@ -112,8 +112,8 @@ export default function ProductDetail() {
             <div className="mt-6 flex flex-wrap gap-3">
               <Button data-testid="buy-now-btn" onClick={handleBuy} className="h-12 flex-1 rounded-full bg-navy text-base hover:bg-navy-700">Buy now (Escrow)</Button>
               <Button data-testid="chat-seller-btn" onClick={openChat} variant="outline" className="h-12 flex-1 rounded-full"><MessageCircle className="mr-2 h-4 w-4" />Chat seller</Button>
-              <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full" data-testid="detail-save-btn" onClick={() => toggleSaved(product.id)}>
-                <Heart className={`h-5 w-5 ${isSaved ? 'fill-rose-500 text-rose-500' : ''}`} />
+              <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full" data-testid="detail-save-btn" onClick={() => toggleLike(product.id)}>
+                <Heart className={`h-5 w-5 ${liked ? 'fill-rose-500 text-rose-500' : ''}`} />
               </Button>
               <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full"><Share2 className="h-5 w-5" /></Button>
             </div>
@@ -139,7 +139,6 @@ export default function ProductDetail() {
             {!isOwn && (
               <div className="mt-3 flex gap-2">
                 <Button variant="outline" size="sm" className="rounded-full" data-testid="report-btn" onClick={() => setReportOpen(true)}><Flag className="mr-1 h-3 w-3" />Report</Button>
-                <Button variant="outline" size="sm" className="rounded-full text-rose-600" data-testid="block-btn" onClick={blockUser}><Ban className="mr-1 h-3 w-3" />Block</Button>
               </div>
             )}
           </div>

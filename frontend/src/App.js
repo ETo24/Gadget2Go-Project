@@ -23,15 +23,28 @@ import Verification from './pages/Verification';
 import SmartMatch from './pages/SmartMatch';
 import Checkout from './pages/Checkout';
 import Wallet from './pages/Wallet';
+import Liked from './pages/Liked';
+import RefundDetail from './pages/RefundDetail';
 import DeviceValidation from './pages/DeviceValidation';
 import Admin from './pages/Admin';
 import NotFound from './pages/NotFound';
 
-function Protected({ children }) {
+function Protected({ children, adminBlocked = true }) {
+  const { user, bootLoading } = useApp();
+  const path = window.location.pathname;
+  if (bootLoading) return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  // Admins should stay in admin panel
+  if (user.role === 'admin' && adminBlocked && path !== '/admin') return <Navigate to="/admin" replace />;
+  return <Layout>{children}</Layout>;
+}
+
+function AdminOnly({ children }) {
   const { user, bootLoading } = useApp();
   if (bootLoading) return <div className="grid min-h-screen place-items-center text-muted-foreground">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  return <Layout>{children}</Layout>;
+  if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 function App() {
@@ -55,12 +68,14 @@ function App() {
           <Route path="/chat/:id" element={<Protected><Chat /></Protected>} />
           <Route path="/checkout/:id" element={<Protected><Checkout /></Protected>} />
           <Route path="/wallet" element={<Protected><Wallet /></Protected>} />
+          <Route path="/liked" element={<Protected><Liked /></Protected>} />
+          <Route path="/refund/:id" element={<Protected><RefundDetail /></Protected>} />
           <Route path="/validation" element={<Protected><DeviceValidation /></Protected>} />
           <Route path="/verification" element={<Protected><Verification /></Protected>} />
           <Route path="/profile" element={<Protected><Profile /></Protected>} />
           <Route path="/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
-          <Route path="/admin" element={<Protected><Admin /></Protected>} />
+          <Route path="/admin" element={<AdminOnly><Admin /></AdminOnly>} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

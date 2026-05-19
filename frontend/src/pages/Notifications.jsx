@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Bell, Tag, MessageSquare, Truck, ShieldCheck, Check, Wallet } from 'lucide-react';
+import { Bell, Tag, MessageSquare, Truck, ShieldCheck, Check, Wallet, Flag, AlertCircle, ShieldAlert, RotateCcw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { api } from '../lib/api';
 import { toast } from 'sonner';
 
-const ICONS = { Tag, MessageSquare, Truck, ShieldCheck, Wallet, Bell };
+const ICONS = { Tag, MessageSquare, Truck, ShieldCheck, Wallet, Bell, Flag, AlertCircle, ShieldAlert, RotateCcw };
 
 export default function Notifications() {
   const [items, setItems] = useState([]);

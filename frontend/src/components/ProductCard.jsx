@@ -13,8 +13,9 @@ function trustColor(score) {
 }
 
 export default function ProductCard({ product, view = 'grid' }) {
-  const { saved, toggleSaved } = useApp();
-  const isSaved = saved.includes(product.id);
+  const { isLiked, toggleLike, user } = useApp();
+  const liked = isLiked(product.id);
+  const canLike = user?.role !== 'admin';
   const cond = CONDITION_GRADES.find(c => c.id === product.condition);
   const aiDelta = (product.aiFair || product.price) - product.price;
   const goodDeal = aiDelta >= 0;
@@ -33,9 +34,11 @@ export default function ProductCard({ product, view = 'grid' }) {
           <div className="flex flex-1 flex-col">
             <div className="flex items-start justify-between gap-2">
               <p className="line-clamp-2 font-heading font-semibold">{product.title}</p>
-              <button onClick={(e) => { e.preventDefault(); toggleSaved(product.id); }} aria-label="Save" data-testid={`save-${product.id}`}>
-                <Heart className={`h-5 w-5 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-muted-foreground'}`} />
-              </button>
+              {canLike && (
+                <button onClick={(e) => { e.preventDefault(); toggleLike(product.id); }} aria-label="Like" data-testid={`save-${product.id}`}>
+                  <Heart className={`h-5 w-5 ${liked ? 'fill-rose-500 text-rose-500' : 'text-muted-foreground'}`} />
+                </button>
+              )}
             </div>
             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3" /> {product.location}
@@ -74,12 +77,12 @@ export default function ProductCard({ product, view = 'grid' }) {
             <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-navy backdrop-blur"><MapPin className="h-3 w-3" />{dist} km</span>
           )}
           <button
-            onClick={(e) => { e.preventDefault(); toggleSaved(product.id); }}
-            aria-label="Save"
+            onClick={(e) => { e.preventDefault(); toggleLike(product.id); }}
+            aria-label="Like"
             data-testid={`save-${product.id}`}
-            className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 backdrop-blur shadow-md transition-transform hover:scale-105"
+            className={`absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 backdrop-blur shadow-md transition-transform hover:scale-105 ${canLike ? '' : 'hidden'}`}
           >
-            <Heart className={`h-4 w-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-navy'}`} />
+            <Heart className={`h-4 w-4 ${liked ? 'fill-rose-500 text-rose-500' : 'text-navy'}`} />
           </button>
         </div>
         <div className="p-4">

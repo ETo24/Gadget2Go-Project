@@ -87,12 +87,15 @@ async def get_optional_user(authorization: Optional[str] = Header(None)) -> Opti
         return None
 
 
-async def compute_trust_score(user_id: str) -> int:
-    """Dynamic trust score based on verifications, transactions, reviews, reports."""
+async def compute_trust_score(user_id: str) -> Optional[int]:
+    """Dynamic trust score based on verifications, transactions, reviews, reports.
+    Returns None for admin accounts (no trust score). New users start at 0."""
     user = await db.users.find_one({"id": user_id})
     if not user:
-        return 50
-    score = 50
+        return 0
+    if user.get("role") == "admin":
+        return None
+    score = 0
     if user.get("emailVerified"):
         score += 10
     if user.get("phoneVerified"):
@@ -110,14 +113,16 @@ async def compute_trust_score(user_id: str) -> int:
     return max(0, min(100, score))
 
 
-def trust_label(score: int) -> str:
+def trust_label(score: Optional[int]) -> Optional[str]:
+    if score is None:
+        return None
     if score >= 85:
         return "Highly Trusted"
     if score >= 65:
         return "Trusted"
     if score >= 40:
         return "New Seller"
-    return "Risk Warning"
+    return "New User"
 
 
 # ---------------- Pydantic Models ----------------
@@ -236,15 +241,31 @@ class DeviceValidationCreate(BaseModel):
 class ReportCreate(BaseModel):
     targetId: str
     targetType: str = "user"  # user | listing
+    listingId: Optional[str] = None
     reason: str
 
 
-class BlockCreate(BaseModel):
-    userId: str
+class RefundRespond(BaseModel):
+    action: str  # accept | reject | request_info
+    message: Optional[str] = ""
+
+
+class RefundEscalate(BaseModel):
+    reason: Optional[str] = ""
+
+
+class RefundMessage(BaseModel):
+    text: Optional[str] = ""
+    image: Optional[str] = None
+
+
+class TopupBody(BaseModel):
+    amount: float
+    method: Optional[str] = "card"  # card | bank
 
 
 class AdminAction(BaseModel):
-    action: str  # approve | reject | dismiss | resolve | delete
+    action: str  # approve | reject | dismiss | resolve | delete | suspend | unsuspend | force_refund | force_reject
     notes: Optional[str] = ""
 
 
@@ -302,7 +323,8 @@ async def signup(body: SignupBody):
         "phoneVerified": False,
         "kycStatus": "none",  # none | pending | approved | rejected
         "walletBalance": 0,
-        "rating": 5.0,
+        "rating": 0.0,
+        "suspended": False,
         "createdAt": now(),
     }
     if existing:
@@ -341,6 +363,8 @@ async def login(body: LoginBody):
         raise HTTPException(404, "No account found with this email")
     if user.get("password") != body.password:
         raise HTTPException(401, "Incorrect password")
+    if user.get("suspended"):
+        raise HTTPException(403, "This account has been suspended. Contact support.")
     if not user.get("emailVerified"):
         raise HTTPException(403, "Email not verified. Please complete OTP verification.")
     user.pop("_id", None)
@@ -729,6 +753,11 @@ async def confirm_receipt(payment_id: str, user: dict = Depends(get_current_user
         raise HTTPException(400, "Payment is not in escrow")
     await db.payments.update_one({"id": payment_id}, {"$set": {"status": "released", "releasedAt": now()}})
     await db.users.update_one({"id": p["sellerId"]}, {"$inc": {"walletBalance": p["amount"]}})
+    await db.wallet_transactions.insert_one({
+        "id": newid(), "userId": p["sellerId"], "type": "sale",
+        "amount": p["amount"], "description": f"Sale released — {p.get('title','')}",
+        "createdAt": now(),
+    })
     await db.notifications.insert_one({
         "id": newid(), "userId": p["sellerId"], "type": "payment",
         "title": "Payment released",
@@ -736,6 +765,86 @@ async def confirm_receipt(payment_id: str, user: dict = Depends(get_current_user
         "icon": "Wallet", "createdAt": now(), "unread": True,
     })
     return {"ok": True}
+
+
+# ---------------- Wallet ----------------
+@api.post("/wallet/topup")
+async def wallet_topup(body: TopupBody, user: dict = Depends(get_current_user)):
+    if body.amount <= 0 or body.amount > 10000:
+        raise HTTPException(400, "Amount must be between $1 and $10,000")
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"walletBalance": body.amount}})
+    tx = {
+        "id": newid(), "userId": user["id"], "type": "topup",
+        "amount": body.amount, "description": f"Top-up via {body.method}",
+        "createdAt": now(),
+    }
+    await db.wallet_transactions.insert_one(tx)
+    tx.pop("_id", None)
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "walletBalance": 1})
+    return {"ok": True, "transaction": tx, "balance": fresh.get("walletBalance", 0)}
+
+
+@api.get("/wallet/transactions")
+async def wallet_transactions(user: dict = Depends(get_current_user)):
+    txs = await db.wallet_transactions.find({"userId": user["id"]}, {"_id": 0}).sort("createdAt", -1).to_list(200)
+    # Compute breakdown
+    bought_escrow = await db.payments.find({"buyerId": user["id"], "status": "escrow"}, {"_id": 0, "amount": 1}).to_list(500)
+    pending = sum(p["amount"] for p in bought_escrow)
+    refund_pending = await db.refunds.find({"buyerId": user["id"], "status": {"$in": ["pending", "under_admin_review"]}}, {"_id": 0, "amount": 1}).to_list(500)
+    refund_balance = sum(r["amount"] for r in refund_pending)
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "walletBalance": 1})
+    return {
+        "balance": fresh.get("walletBalance", 0),
+        "pendingEscrow": pending,
+        "refundPending": refund_balance,
+        "transactions": txs,
+    }
+
+
+# ---------------- Likes ----------------
+@api.get("/likes/mine")
+async def my_likes(user: dict = Depends(get_current_user)):
+    items = await db.likes.find({"userId": user["id"]}, {"_id": 0}).sort("createdAt", -1).to_list(500)
+    listings = []
+    for it in items:
+        l = await db.listings.find_one({"id": it["listingId"]}, {"_id": 0})
+        if l:
+            enriched = await enrich_listing(l, viewer=user)
+            enriched["likedAt"] = it["createdAt"]
+            listings.append(enriched)
+    return listings
+
+
+@api.get("/likes/ids")
+async def my_like_ids(user: dict = Depends(get_current_user)):
+    items = await db.likes.find({"userId": user["id"]}, {"_id": 0, "listingId": 1}).to_list(1000)
+    return [i["listingId"] for i in items]
+
+
+@api.post("/likes/{listing_id}")
+async def add_like(listing_id: str, user: dict = Depends(get_current_user)):
+    await db.likes.update_one({"userId": user["id"], "listingId": listing_id}, {"$set": {"createdAt": now()}}, upsert=True)
+    return {"ok": True}
+
+
+@api.delete("/likes/{listing_id}")
+async def remove_like(listing_id: str, user: dict = Depends(get_current_user)):
+    await db.likes.delete_one({"userId": user["id"], "listingId": listing_id})
+    return {"ok": True}
+
+
+# ---------------- Listing counts ----------------
+@api.get("/categories/counts")
+async def listing_counts():
+    pipeline = [
+        {"$match": {"status": {"$ne": "removed"}}},
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+    ]
+    cats = {}
+    async for row in db.listings.aggregate(pipeline):
+        cats[row["_id"]] = row["count"]
+    total = await db.listings.count_documents({"status": {"$ne": "removed"}})
+    return {"byCategory": cats, "total": total}
 
 
 @api.post("/refunds")
@@ -746,17 +855,149 @@ async def request_refund(body: RefundCreate, user: dict = Depends(get_current_us
     if p["status"] != "escrow":
         raise HTTPException(400, "Cannot refund — payment already released")
     refund = {
-        "id": newid(), "paymentId": p["id"], "buyerId": user["id"], "sellerId": p["sellerId"],
-        "amount": p["amount"], "reason": body.reason, "status": "pending", "createdAt": now(),
+        "id": newid(), "paymentId": p["id"], "listingId": p.get("listingId"),
+        "buyerId": user["id"], "buyerName": user["name"], "buyerAvatar": user.get("avatar", ""),
+        "sellerId": p["sellerId"],
+        "amount": p["amount"], "reason": body.reason,
+        "status": "pending",  # pending | accepted | rejected | under_admin_review | refunded | closed
+        "evidence": [], "messages": [],
+        "title": p.get("title"), "image": p.get("image"),
+        "createdAt": now(), "updatedAt": now(),
     }
+    seller = await db.users.find_one({"id": p["sellerId"]}, {"_id": 0, "name": 1, "avatar": 1})
+    if seller:
+        refund["sellerName"] = seller["name"]
+        refund["sellerAvatar"] = seller.get("avatar", "")
     await db.refunds.insert_one(refund)
     refund.pop("_id", None)
+    # Notify seller
+    await db.notifications.insert_one({
+        "id": newid(), "userId": p["sellerId"], "type": "refund",
+        "title": "New refund request",
+        "text": f"{user['name']} requested a refund for {p.get('title','your item')}: {body.reason[:60]}",
+        "icon": "RotateCcw", "createdAt": now(), "unread": True,
+    })
     return refund
+
+
+@api.post("/refunds/{refund_id}/respond")
+async def seller_respond_refund(refund_id: str, body: RefundRespond, user: dict = Depends(get_current_user)):
+    r = await db.refunds.find_one({"id": refund_id})
+    if not r:
+        raise HTTPException(404, "Refund not found")
+    if r["sellerId"] != user["id"]:
+        raise HTTPException(403, "Only the seller can respond to this refund")
+    if r["status"] not in ("pending", "under_admin_review"):
+        raise HTTPException(400, "Refund cannot be modified in its current state")
+    if body.action == "accept":
+        # Auto-refund: mark payment refunded, return funds (in demo, we just close)
+        await db.refunds.update_one({"id": refund_id}, {"$set": {"status": "refunded", "updatedAt": now()}})
+        await db.payments.update_one({"id": r["paymentId"]}, {"$set": {"status": "refunded"}})
+        await db.notifications.insert_one({
+            "id": newid(), "userId": r["buyerId"], "type": "refund",
+            "title": "Refund accepted by seller",
+            "text": f"${r['amount']:.0f} will be returned to your wallet.",
+            "icon": "RotateCcw", "createdAt": now(), "unread": True,
+        })
+        # Record buyer wallet transaction
+        await db.wallet_transactions.insert_one({
+            "id": newid(), "userId": r["buyerId"], "type": "refund",
+            "amount": r["amount"], "description": f"Refund for {r.get('title','')}",
+            "createdAt": now(),
+        })
+    elif body.action == "reject":
+        await db.refunds.update_one({"id": refund_id}, {"$set": {"status": "rejected", "sellerMessage": body.message, "updatedAt": now()}})
+        await db.notifications.insert_one({
+            "id": newid(), "userId": r["buyerId"], "type": "refund",
+            "title": "Refund rejected by seller",
+            "text": body.message or "Seller rejected your refund request. You can escalate to admin.",
+            "icon": "RotateCcw", "createdAt": now(), "unread": True,
+        })
+    elif body.action == "request_info":
+        await db.refunds.update_one({"id": refund_id}, {"$set": {"sellerMessage": body.message, "updatedAt": now()}})
+        await db.notifications.insert_one({
+            "id": newid(), "userId": r["buyerId"], "type": "refund",
+            "title": "Seller requested more info",
+            "text": body.message or "Please provide more details about your refund.",
+            "icon": "RotateCcw", "createdAt": now(), "unread": True,
+        })
+    else:
+        raise HTTPException(400, "Invalid action")
+    return {"ok": True}
+
+
+@api.post("/refunds/{refund_id}/escalate")
+async def escalate_refund(refund_id: str, body: RefundEscalate, user: dict = Depends(get_current_user)):
+    r = await db.refunds.find_one({"id": refund_id})
+    if not r or r["buyerId"] != user["id"]:
+        raise HTTPException(404, "Refund not found")
+    if r["status"] not in ("rejected", "pending"):
+        raise HTTPException(400, "Only rejected/pending refunds can be escalated")
+    await db.refunds.update_one({"id": refund_id}, {"$set": {"status": "under_admin_review", "escalationReason": body.reason, "updatedAt": now()}})
+    admins = await db.users.find({"role": "admin"}, {"_id": 0, "id": 1}).to_list(20)
+    for a in admins:
+        await db.notifications.insert_one({
+            "id": newid(), "userId": a["id"], "type": "refund",
+            "title": "Refund escalated to admin",
+            "text": f"{user['name']} escalated a ${r['amount']:.0f} refund dispute.",
+            "icon": "AlertCircle", "createdAt": now(), "unread": True,
+        })
+    return {"ok": True}
+
+
+@api.post("/refunds/{refund_id}/evidence")
+async def add_evidence(refund_id: str, body: dict, user: dict = Depends(get_current_user)):
+    r = await db.refunds.find_one({"id": refund_id})
+    if not r:
+        raise HTTPException(404, "Refund not found")
+    if user["id"] not in (r["buyerId"], r["sellerId"]):
+        raise HTTPException(403, "Not your refund")
+    image = body.get("image")
+    if not image:
+        raise HTTPException(400, "image required (base64)")
+    item = {"id": newid(), "userId": user["id"], "userName": user["name"], "image": image, "createdAt": now()}
+    await db.refunds.update_one({"id": refund_id}, {"$push": {"evidence": item}, "$set": {"updatedAt": now()}})
+    return item
+
+
+@api.post("/refunds/{refund_id}/messages")
+async def refund_message(refund_id: str, body: RefundMessage, user: dict = Depends(get_current_user)):
+    r = await db.refunds.find_one({"id": refund_id})
+    if not r:
+        raise HTTPException(404, "Refund not found")
+    is_admin = user.get("role") == "admin"
+    if not is_admin and user["id"] not in (r["buyerId"], r["sellerId"]):
+        raise HTTPException(403, "Not your refund")
+    msg = {
+        "id": newid(), "fromId": user["id"], "fromName": user["name"], "fromAvatar": user.get("avatar", ""),
+        "fromRole": "admin" if is_admin else ("buyer" if user["id"] == r["buyerId"] else "seller"),
+        "text": body.text or "", "image": body.image, "createdAt": now(),
+    }
+    await db.refunds.update_one({"id": refund_id}, {"$push": {"messages": msg}, "$set": {"updatedAt": now()}})
+    other_ids = [x for x in [r["buyerId"], r["sellerId"]] if x != user["id"]]
+    for oid in other_ids:
+        await db.notifications.insert_one({
+            "id": newid(), "userId": oid, "type": "refund",
+            "title": f"New message on refund dispute",
+            "text": (body.text or "[image]")[:80],
+            "icon": "MessageSquare", "createdAt": now(), "unread": True,
+        })
+    return msg
+
+
+@api.get("/refunds/{refund_id}")
+async def get_refund(refund_id: str, user: dict = Depends(get_current_user)):
+    r = await db.refunds.find_one({"id": refund_id}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "Refund not found")
+    if user.get("role") != "admin" and user["id"] not in (r["buyerId"], r["sellerId"]):
+        raise HTTPException(403, "Not your refund")
+    return r
 
 
 @api.get("/refunds/mine")
 async def my_refunds(user: dict = Depends(get_current_user)):
-    items = await db.refunds.find({"$or": [{"buyerId": user["id"]}, {"sellerId": user["id"]}]}, {"_id": 0}).to_list(200)
+    items = await db.refunds.find({"$or": [{"buyerId": user["id"]}, {"sellerId": user["id"]}]}, {"_id": 0}).sort("createdAt", -1).to_list(200)
     return items
 
 
@@ -838,23 +1079,39 @@ async def my_validations(user: dict = Depends(get_current_user)):
     return await db.device_validations.find({"userId": user["id"]}, {"_id": 0}).sort("createdAt", -1).to_list(50)
 
 
-# ---------------- Reports / Blocks ----------------
+# ---------------- Reports ----------------
 @api.post("/reports")
 async def create_report(body: ReportCreate, user: dict = Depends(get_current_user)):
+    target = await db.users.find_one({"id": body.targetId}, {"_id": 0, "name": 1, "email": 1})
+    listing = None
+    if body.listingId:
+        listing = await db.listings.find_one({"id": body.listingId}, {"_id": 0, "title": 1, "images": 1})
     rec = {
-        "id": newid(), "reporterId": user["id"], "reporterName": user["name"],
-        "targetId": body.targetId, "targetType": body.targetType, "reason": body.reason,
-        "status": "open", "createdAt": now(),
+        "id": newid(),
+        "reporterId": user["id"], "reporterName": user["name"], "reporterAvatar": user.get("avatar", ""),
+        "targetId": body.targetId, "targetType": body.targetType,
+        "targetName": target.get("name") if target else "Unknown",
+        "targetEmail": target.get("email") if target else "",
+        "listingId": body.listingId,
+        "listingTitle": listing.get("title") if listing else None,
+        "listingImage": (listing.get("images") or [None])[0] if listing else None,
+        "reason": body.reason,
+        "status": "pending",  # pending | reviewed | resolved | dismissed
+        "adminNotes": "",
+        "createdAt": now(),
     }
     await db.reports.insert_one(rec)
     rec.pop("_id", None)
+    # Notify all admins
+    admins = await db.users.find({"role": "admin"}, {"_id": 0, "id": 1}).to_list(20)
+    for a in admins:
+        await db.notifications.insert_one({
+            "id": newid(), "userId": a["id"], "type": "report",
+            "title": "New report submitted",
+            "text": f"{user['name']} reported {rec['targetName']}: {body.reason[:60]}",
+            "icon": "Flag", "createdAt": now(), "unread": True,
+        })
     return rec
-
-
-@api.post("/blocks")
-async def block_user(body: BlockCreate, user: dict = Depends(get_current_user)):
-    await db.blocks.update_one({"userId": user["id"], "blockedUserId": body.userId}, {"$set": {"createdAt": now()}}, upsert=True)
-    return {"ok": True}
 
 
 # ---------------- Admin ----------------
@@ -905,8 +1162,100 @@ async def admin_reports(_=Depends(require_admin)):
 
 @api.post("/admin/reports/{rid}")
 async def admin_resolve_report(rid: str, body: AdminAction, _=Depends(require_admin)):
-    new_status = "resolved" if body.action == "resolve" else "dismissed"
-    await db.reports.update_one({"id": rid}, {"$set": {"status": new_status, "notes": body.notes}})
+    rec = await db.reports.find_one({"id": rid})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    status_map = {"resolve": "resolved", "dismiss": "dismissed", "review": "reviewed"}
+    new_status = status_map.get(body.action, "reviewed")
+    await db.reports.update_one({"id": rid}, {"$set": {"status": new_status, "adminNotes": body.notes, "reviewedAt": now()}})
+    # Notify reporter
+    await db.notifications.insert_one({
+        "id": newid(), "userId": rec["reporterId"], "type": "report",
+        "title": f"Your report was {new_status}",
+        "text": body.notes or f"Admin marked your report as {new_status}.",
+        "icon": "Flag", "createdAt": now(), "unread": True,
+    })
+    return {"ok": True}
+
+
+@api.get("/admin/users")
+async def admin_list_users(_=Depends(require_admin)):
+    users = await db.users.find({}, {"_id": 0, "password": 0}).sort("createdAt", -1).to_list(500)
+    out = []
+    for u in users:
+        u["trustScore"] = await compute_trust_score(u["id"])
+        u["trustLabel"] = trust_label(u["trustScore"])
+        out.append(u)
+    return out
+
+
+@api.post("/admin/users/{user_id}")
+async def admin_user_action(user_id: str, body: AdminAction, _=Depends(require_admin)):
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(404, "User not found")
+    if body.action == "suspend":
+        await db.users.update_one({"id": user_id}, {"$set": {"suspended": True, "suspendReason": body.notes}})
+        await db.notifications.insert_one({
+            "id": newid(), "userId": user_id, "type": "system",
+            "title": "Account suspended",
+            "text": body.notes or "Your account has been suspended by an admin.",
+            "icon": "ShieldAlert", "createdAt": now(), "unread": True,
+        })
+    elif body.action == "unsuspend":
+        await db.users.update_one({"id": user_id}, {"$set": {"suspended": False}, "$unset": {"suspendReason": ""}})
+    else:
+        raise HTTPException(400, "Invalid action")
+    return {"ok": True}
+
+
+@api.get("/admin/refunds")
+async def admin_list_refunds(_=Depends(require_admin)):
+    items = await db.refunds.find({}, {"_id": 0}).sort("createdAt", -1).to_list(500)
+    return items
+
+
+@api.get("/admin/refunds/{rid}")
+async def admin_get_refund(rid: str, _=Depends(require_admin)):
+    rec = await db.refunds.find_one({"id": rid}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    return rec
+
+
+@api.post("/admin/refunds/{rid}")
+async def admin_refund_action(rid: str, body: AdminAction, _=Depends(require_admin)):
+    rec = await db.refunds.find_one({"id": rid})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    if body.action == "force_refund":
+        await db.refunds.update_one({"id": rid}, {"$set": {"status": "refunded", "adminNotes": body.notes, "updatedAt": now()}})
+        await db.payments.update_one({"id": rec["paymentId"]}, {"$set": {"status": "refunded"}})
+        await db.wallet_transactions.insert_one({
+            "id": newid(), "userId": rec["buyerId"], "type": "refund",
+            "amount": rec["amount"], "description": f"Admin-approved refund — {rec.get('title','')}",
+            "createdAt": now(),
+        })
+        for uid in [rec["buyerId"], rec["sellerId"]]:
+            await db.notifications.insert_one({
+                "id": newid(), "userId": uid, "type": "refund",
+                "title": "Admin ruled on refund",
+                "text": f"Refund of ${rec['amount']:.0f} approved by admin.",
+                "icon": "ShieldCheck", "createdAt": now(), "unread": True,
+            })
+    elif body.action == "force_reject":
+        await db.refunds.update_one({"id": rid}, {"$set": {"status": "closed", "adminNotes": body.notes, "updatedAt": now()}})
+        for uid in [rec["buyerId"], rec["sellerId"]]:
+            await db.notifications.insert_one({
+                "id": newid(), "userId": uid, "type": "refund",
+                "title": "Admin closed refund dispute",
+                "text": body.notes or "Admin rejected the refund. Payment will be released to seller.",
+                "icon": "ShieldCheck", "createdAt": now(), "unread": True,
+            })
+    elif body.action == "resolve":
+        await db.refunds.update_one({"id": rid}, {"$set": {"status": "closed", "adminNotes": body.notes, "updatedAt": now()}})
+    else:
+        raise HTTPException(400, "Invalid action")
     return {"ok": True}
 
 

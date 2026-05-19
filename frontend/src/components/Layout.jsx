@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ShoppingBag, Plus, MessageCircle, User, Sparkles, Settings as SettingsIcon, Bell, LayoutDashboard, Wallet, ShieldCheck, LogOut, Sun, Moon, Search, Scan, BadgeCheck, Store } from 'lucide-react';
+import { Home, ShoppingBag, Plus, MessageCircle, User, Sparkles, Settings as SettingsIcon, Bell, LayoutDashboard, Wallet, ShieldCheck, LogOut, Sun, Moon, Search, Scan, BadgeCheck, Store, Heart } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -15,6 +15,7 @@ const sideItems = [
   { to: '/match', label: 'Smart Match', icon: Scan },
   { to: '/valuation', label: 'AI Valuation', icon: Sparkles },
   { to: '/chat', label: 'Chat', icon: MessageCircle },
+  { to: '/liked', label: 'Liked Gadgets', icon: Heart },
   { to: '/wallet', label: 'Wallet & Orders', icon: Wallet },
   { to: '/validation', label: 'Device Validation', icon: BadgeCheck },
   { to: '/verification', label: 'Verify ID', icon: ShieldCheck },
@@ -137,8 +138,8 @@ export default function Layout({ children }) {
                 <ShieldCheck className="h-4 w-4" />
                 <p className="text-xs font-semibold uppercase tracking-wider">Trust Score</p>
               </div>
-              <p className="mt-2 font-heading text-2xl font-bold">{user?.trustScore ?? 50}/100</p>
-              <p className="text-xs text-white/60">{user?.trustLabel || 'Verified by Cybridge'}</p>
+              <p className="mt-2 font-heading text-2xl font-bold">{user?.trustScore ?? 0}/100</p>
+              <p className="text-xs text-white/60">{user?.trustLabel || 'New User'}</p>
             </div>
           </nav>
         </aside>

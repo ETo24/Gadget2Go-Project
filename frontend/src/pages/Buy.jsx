@@ -17,21 +17,24 @@ import { toast } from 'sonner';
 const BRANDS = ['Apple', 'Samsung', 'Google', 'Sony', 'Microsoft', 'OnePlus'];
 const DISTANCES = [{ v: 2, l: '2 km' }, { v: 5, l: '5 km' }, { v: 10, l: '10 km' }, { v: 20, l: '20 km' }, { v: 99999, l: 'Anywhere' }];
 
-function FilterPanel({ cat, setCat, brands, toggleBrand, conds, toggleCond, priceMax, setPriceMax, verifiedOnly, setVerifiedOnly, sellerType, setSellerType, dist, setDist }) {
+function FilterPanel({ cat, setCat, brands, toggleBrand, conds, toggleCond, priceMax, setPriceMax, verifiedOnly, setVerifiedOnly, sellerType, setSellerType, dist, setDist, counts }) {
   return (
     <div className="space-y-6">
       <div>
         <p className="font-heading text-sm font-bold uppercase tracking-wider">Category</p>
         <div className="mt-3 space-y-2">
-          {[{ id: '', name: 'All' }, ...CATEGORIES].map(c => (
-            <label key={c.id || 'all'} className="flex cursor-pointer items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                <input type="radio" checked={cat === c.id} onChange={() => setCat(c.id)} className="accent-teal-600" data-testid={`fcat-${c.id || 'all'}`} />
-                {c.name}
-              </span>
-              <span className="text-xs text-muted-foreground">{c.count ?? ''}</span>
-            </label>
-          ))}
+          {[{ id: '', name: 'All' }, ...CATEGORIES].map(c => {
+            const count = c.id === '' ? counts.total : (counts.byCategory?.[c.id] ?? 0);
+            return (
+              <label key={c.id || 'all'} className="flex cursor-pointer items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <input type="radio" checked={cat === c.id} onChange={() => setCat(c.id)} className="accent-teal-600" data-testid={`fcat-${c.id || 'all'}`} />
+                  {c.name}
+                </span>
+                <span className="text-xs font-semibold text-muted-foreground" data-testid={`count-${c.id || 'all'}`}>{count}</span>
+              </label>
+            );
+          })}
         </div>
       </div>
       <div>
@@ -102,11 +105,16 @@ export default function Buy() {
   const [dist, setDist] = useState(99999);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState({ byCategory: {}, total: 0 });
 
   const toggleBrand = (b) => setBrands(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
   const toggleCond = (c) => setConds(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
 
-  const filterProps = { cat, setCat, brands, toggleBrand, conds, toggleCond, priceMax, setPriceMax, verifiedOnly, setVerifiedOnly, sellerType, setSellerType, dist, setDist };
+  const filterProps = { cat, setCat, brands, toggleBrand, conds, toggleCond, priceMax, setPriceMax, verifiedOnly, setVerifiedOnly, sellerType, setSellerType, dist, setDist, counts };
+
+  useEffect(() => {
+    api.get('/categories/counts').then(r => setCounts(r.data)).catch(() => {});
+  }, [items.length]);
 
   useEffect(() => {
     let active = true;

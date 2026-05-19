@@ -7,6 +7,7 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
   const [theme, setTheme] = useState('light');
   const [saved, setSaved] = useState([]);
+  const [likedSet, setLikedSet] = useState(new Set());
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [compare, setCompare] = useState([]);
   const [coords, setCoords] = useState({ lat: 1.3521, lon: 103.8198 }); // default Singapore
@@ -22,7 +23,12 @@ export function AppProvider({ children }) {
     } catch { /* ignore */ }
     const token = localStorage.getItem('g2g_token');
     if (token) {
-      api.get('/users/me').then(r => setUser(r.data)).catch(() => localStorage.removeItem('g2g_token')).finally(() => setBootLoading(false));
+      api.get('/users/me').then(r => {
+        setUser(r.data);
+        if (r.data.role !== 'admin') {
+          api.get('/likes/ids').then(rr => setLikedSet(new Set(rr.data))).catch(() => {});
+        }
+      }).catch(() => localStorage.removeItem('g2g_token')).finally(() => setBootLoading(false));
     } else { setBootLoading(false); }
   }, []);
 
@@ -48,16 +54,41 @@ export function AppProvider({ children }) {
   const setSession = useCallback((token, userObj) => {
     localStorage.setItem('g2g_token', token);
     setUser(userObj);
+    if (userObj.role !== 'admin') {
+      api.get('/likes/ids').then(r => setLikedSet(new Set(r.data))).catch(() => {});
+    }
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('g2g_token');
     setUser(null);
+    setLikedSet(new Set());
     disconnectChatWS();
   }, []);
 
   const toggleTheme = useCallback(() => setTheme(t => (t === 'dark' ? 'light' : 'dark')), []);
   const toggleSaved = useCallback((id) => setSaved(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]), []);
+
+  const isLiked = useCallback((listingId) => likedSet.has(listingId), [likedSet]);
+  const toggleLike = useCallback(async (listingId) => {
+    const liked = likedSet.has(listingId);
+    setLikedSet(prev => {
+      const n = new Set(prev);
+      if (liked) n.delete(listingId); else n.add(listingId);
+      return n;
+    });
+    try {
+      if (liked) await api.delete(`/likes/${listingId}`);
+      else await api.post(`/likes/${listingId}`);
+    } catch {
+      // revert on failure
+      setLikedSet(prev => {
+        const n = new Set(prev);
+        if (liked) n.add(listingId); else n.delete(listingId);
+        return n;
+      });
+    }
+  }, [likedSet]);
   const addRecentlyViewed = useCallback((id) => setRecentlyViewed(prev => [id, ...prev.filter(x => x !== id)].slice(0, 8)), []);
   const toggleCompare = useCallback((id) => setCompare(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length < 3 ? [...prev, id] : prev)), []);
 
@@ -77,9 +108,10 @@ export function AppProvider({ children }) {
   }, []);
 
   const value = {
-    user, theme, saved, recentlyViewed, compare, coords, bootLoading,
+    user, theme, saved, recentlyViewed, compare, coords, bootLoading, likedSet,
     setSession, logout, toggleTheme, toggleSaved, addRecentlyViewed, toggleCompare,
     setTheme, requestGeolocation, refreshUser, setCoords,
+    isLiked, toggleLike,
   };
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

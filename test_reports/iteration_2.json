@@ -1,0 +1,48 @@
+{
+  "summary": "G2G iteration 3 testing — wrote new pytest /app/backend/tests/test_iteration3.py with 18 tests covering blocks removal, trust-score rules, reports, admin users (suspend/unsuspend), wallet topup/transactions, likes, categories counts, full refund flow (accept/reject/escalate/messages/evidence), admin refunds (force_refund/force_reject/resolve), and admin analytics. ALL 18 BACKEND TESTS PASS (18/18). Frontend Playwright smoke verified admin auto-redirect to /admin and route guards (admin → /dashboard, /buy → /admin), aria sidebar /liked link, /liked page renders saved items, Buy page category counts, Wallet page renders with Escrow/Refund sections + Top up button opens dialog, /match shows Leaflet map + Map/Grid toggle, ProductDetail no Block button.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/analytics", "issue": "Response only returns {users, listings, payments, revenue, pendingKyc}. The review spec required openReports, openRefunds, verifiedUsers AND users should EXCLUDE admin. Current users count includes admin (21 users instead of 20)."},
+      {"endpoint": "/api/auth/verify-otp + signup", "issue": "New verified user's trustScore is 10 (emailVerified=true bumps +10) not strictly 0. Spec says 'trust score starts at 0 for new users'. Either lock min until KYC, or this minor mismatch with PRD wording."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProductDetail.jsx", "issue": "Report button not found on /product/{id} page via role=button name=Report. Block button correctly absent (good). Report action may be hidden in an overflow menu OR removed entirely. Verify Report is still surfaced to end users per spec.", "selector": "button[name='Report']", "priority": "MEDIUM"},
+      {"component": "Wallet top-up dialog", "issue": "Dialog opens after clicking 'Top up wallet' but content does not contain the literal word 'Amount' — label may be styled differently or use placeholder text. Not blocking, just note.", "selector": "[role=dialog]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration3.xml"
+  ],
+  "action_items": [
+    "Extend /api/admin/analytics to include openReports, openRefunds, verifiedUsers and exclude admins from users count (review spec explicitly required).",
+    "Verify that the Report action on ProductDetail is still accessible (button or menu item) — automated test could not locate it.",
+    "Consider clamping new-user trustScore to 0 until KYC approved, or update PRD wording (currently 10 due to email verification)."
+  ],
+  "critical_code_review_comments": [
+    "server.py now 1418 lines — overdue to split into modules (auth, listings, refunds, wallet, admin, chat). Maintainability risk grows each iteration.",
+    "/api/admin/analytics: missing required fields per spec (openReports/openRefunds/verifiedUsers) and includes admin in user count.",
+    "/api/refunds/{id}/evidence accepts raw `body: dict` instead of a Pydantic model — same anti-pattern previously flagged for listings PATCH.",
+    "Token = user_id (plain) and passwords stored plaintext — acceptable per university-demo decision but flag for any production hand-off.",
+    "Likes endpoint /api/likes/{listing_id} POST does upsert silently — no 404 if listing_id doesn't exist. Could leak orphan likes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 iteration-3 + previous 28/28 still applicable)",
+    "frontend": "~90% — admin guard, liked page, smart-match leaflet, wallet, buy category counts, product detail (no block) all verified visually"
+  },
+  "test_credentials": "Read from /app/memory/test_credentials.md: admin@g2g.app/admin123, aria@g2g.app/demo1234, store@techhub.sg/demo1234, daniel@g2g.app/demo1234.",
+  "seed_data_creation": "Test signups TEST_*@example.com + TEST_it3_* listings created via API for refund flow tests. Earlier polluted TEST_payment_* listings already present from iteration 2.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Public URL = https://g2g-marketplace.preview.emergentagent.com. Login: button text 'Sign in' (no type=submit). Aria's likes page now shows 2 items (TEST_payment_2027f4, TEST_dv_2daf15) from prior tests — preserves across reload, persisted via /api/likes/mine. Admin layout: NO Trust Score block, NO Chat / SmartMatch / AI-Valuation / Liked links in sidebar — matches spec. Leaflet imports work on /match. Wallet trust score sidebar for aria shows 49/100 'New Seller'. Outstanding: /api/admin/analytics is missing 3 fields and counts admin in users.",
+  "rca of the issue": "N/A — no critical bugs. Two minor spec mismatches: (a) analytics fields missing — fix in server.py admin_analytics by adding open_reports = await db.reports.count_documents({status:{$nin:['resolved','dismissed','closed']}}), open_refunds similarly, verified_users = users where kycStatus=='approved' AND emailVerified, and filter users count {role:{$ne:'admin'}}; (b) new user trust score 10 vs 0 — change initial logic to require kycStatus=='approved' before email/phone bonuses or clamp to 0 until first verification step."
+}
