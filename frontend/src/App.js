@@ -61,6 +61,7 @@ function App() {
           <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
           <Route path="/buy" element={<Protected><Buy /></Protected>} />
           <Route path="/buy/:id" element={<Protected><ProductDetail /></Protected>} />
+          <Route path="/listing/:id" element={<Protected><ProductDetail /></Protected>} />  
           <Route path="/sell" element={<Protected><Sell /></Protected>} />
           <Route path="/match" element={<Protected><SmartMatch /></Protected>} />
           <Route path="/valuation" element={<Protected><AIValuation /></Protected>} />

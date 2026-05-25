@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Upload, Sparkles, Check, CheckCircle2, Smartphone, Tablet, Laptop, Gamepad2, Watch, Headphones, X, ShieldAlert } from 'lucide-react';
+import {
+  ChevronRight, ChevronLeft, Upload, Sparkles, Check,
+  CheckCircle2, Smartphone, Tablet, Laptop, Gamepad2, Watch, Headphones, X,
+} from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -11,21 +14,47 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Slider } from '../components/ui/slider';
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
-import { CONDITION_GRADES, valuateDevice } from '../lib/mockData';
 import { api } from '../lib/api';
-import { useApp } from '../context/AppContext';
 
 const DEVICE_TYPES = [
-  { id: 'phones', label: 'Phone', icon: Smartphone },
-  { id: 'tablets', label: 'Tablet', icon: Tablet },
-  { id: 'laptops', label: 'Laptop', icon: Laptop },
-  { id: 'consoles', label: 'Console', icon: Gamepad2 },
-  { id: 'smartwatches', label: 'Smartwatch', icon: Watch },
-  { id: 'accessories', label: 'Accessory', icon: Headphones },
+  { id: 'phones',       label: 'Phone',       icon: Smartphone },
+  { id: 'tablets',      label: 'Tablet',      icon: Tablet },
+  { id: 'laptops',      label: 'Laptop',      icon: Laptop },
+  { id: 'consoles',     label: 'Console',     icon: Gamepad2 },
+  { id: 'smartwatches', label: 'Smartwatch',  icon: Watch },
+  { id: 'accessories',  label: 'Accessory',   icon: Headphones },
 ];
-const STEPS = ['Device', 'Photos', 'Details', 'AI Valuation', 'Method', 'Publish'];
 
-function fileToDataUrl(file) {
+const CONDITION_GRADES = [
+  { id: 'A', label: 'Like New',    desc: 'No scratches, fully functional' },
+  { id: 'B', label: 'Good',        desc: 'Minor wear, fully functional' },
+  { id: 'C', label: 'Fair',        desc: 'Visible wear, works perfectly' },
+  { id: 'D', label: 'Acceptable',  desc: 'Heavy wear, minor issues' },
+];
+
+const STEPS = ['Device', 'Photos', 'Details', 'AI Valuation', 'Pricing', 'Publish'];
+
+// Simple local AI valuation (mirrors backend aiFair logic)
+function computeValuation(data) {
+  const baseMap = { phones: 600, laptops: 900, tablets: 500, consoles: 400, smartwatches: 300, accessories: 150 };
+  const base = baseMap[data.type] || 500;
+  const condMult = { A: 1.0, B: 0.85, C: 0.7, D: 0.55 }[data.condition] || 0.85;
+  const battMult = 0.7 + (data.batteryHealth / 100) * 0.3;
+  const brandBoost = data.brand === 'Apple' ? 1.2 : data.brand === 'Samsung' ? 1.1 : 1.0;
+  const fair = Math.round(base * condMult * battMult * brandBoost);
+  return {
+    fair,
+    recommended: Math.round(fair * 0.95),
+    dealerLow:   Math.round(fair * 0.65),
+    dealerHigh:  Math.round(fair * 0.80),
+    confidence:  Math.round(72 + Math.random() * 18),
+    quickSale:   Math.round(55 + Math.random() * 35),
+    demand:      Math.round(60 + Math.random() * 35),
+  };
+}
+
+// Convert a file to base64 data URL for API upload
+function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result);
@@ -36,78 +65,81 @@ function fileToDataUrl(file) {
 
 export default function Sell() {
   const navigate = useNavigate();
-  const { user, coords } = useApp();
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState({
-    type: '', images: [], brand: 'Apple', model: '', storage: '128GB', ram: '8GB',
-    batteryHealth: 90, condition: 'A', warranty: 'No', description: '',
-    method: 'both', valuation: null, ownershipProof: null,
-  });
+  const [step, setStep]       = useState(0);
   const [publishing, setPublishing] = useState(false);
+  const [data, setData]       = useState({
+    type: '', imageFiles: [], imagePreviews: [],
+    brand: 'Apple', model: '', storage: '128GB', ram: '8GB',
+    batteryHealth: 90, condition: 'A', warranty: 'No', description: '',
+    price: '', method: 'both', valuation: null,
+  });
 
-  const kycApproved = user?.kycStatus === 'approved';
   const update = (k, v) => setData(d => ({ ...d, [k]: v }));
 
-  if (!kycApproved) {
-    return (
-      <div className="mx-auto max-w-2xl text-center">
-        <div className="bento-card p-10">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-amber-100 text-amber-700 dark:bg-amber-500/20"><ShieldAlert className="h-8 w-8" /></div>
-          <h1 className="mt-4 font-heading text-3xl font-bold">Verify your identity to sell</h1>
-          <p className="mt-2 text-muted-foreground">G2G requires sellers to complete a quick identity verification. This protects buyers from scams and builds your Trust Score.</p>
-          <div className="mt-6 flex justify-center gap-3">
-            <Button onClick={() => navigate('/verification')} data-testid="goto-kyc" className="rounded-full bg-navy hover:bg-navy-700">Start verification</Button>
-            <Button variant="outline" onClick={() => navigate('/buy')} className="rounded-full">Continue browsing</Button>
-          </div>
-          {user?.kycStatus === 'pending' && <p className="mt-4 text-sm text-amber-700">Your verification is pending review. We'll notify you within 24h.</p>}
-        </div>
-      </div>
-    );
-  }
-
   const next = () => {
-    if (step === 0 && !data.type) return toast.error('Choose a device type');
-    if (step === 1 && data.images.length === 0) return toast.error('Upload at least 1 photo');
-    if (step === 2 && (!data.brand || !data.model)) return toast.error('Enter brand & model');
-    if (step === 2) update('valuation', valuateDevice(data));
+    if (step === 0 && !data.type)                        return toast.error('Choose a device type');
+    if (step === 1 && data.imageFiles.length === 0)      return toast.error('Upload at least 1 photo');
+    if (step === 2 && (!data.brand || !data.model))      return toast.error('Enter brand & model');
+    if (step === 2) {
+      const v = computeValuation(data);
+      update('valuation', v);
+      // Pre-fill price with suggested
+      if (!data.price) update('price', String(v.recommended));
+    }
+    if (step === 4 && (!data.price || isNaN(Number(data.price)))) return toast.error('Enter a valid price');
     setStep(s => Math.min(STEPS.length - 1, s + 1));
   };
   const back = () => setStep(s => Math.max(0, s - 1));
 
   const onFiles = async (e) => {
     const files = Array.from(e.target.files || []);
-    const urls = await Promise.all(files.map(fileToDataUrl));
-    update('images', [...data.images, ...urls].slice(0, 6));
+    const newPreviews = files.map(f => URL.createObjectURL(f));
+    update('imageFiles',   [...data.imageFiles,   ...files].slice(0, 6));
+    update('imagePreviews',[...data.imagePreviews,...newPreviews].slice(0, 6));
   };
-  const onProofFile = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    update('ownershipProof', await fileToDataUrl(f));
+
+  const removeImage = (i) => {
+    update('imageFiles',    data.imageFiles.filter((_,x) => x !== i));
+    update('imagePreviews', data.imagePreviews.filter((_,x) => x !== i));
   };
-  const removeImage = (i) => update('images', data.images.filter((_, x) => x !== i));
 
   const publish = async () => {
     setPublishing(true);
     try {
-      const payload = {
-        title: `${data.brand} ${data.model} ${data.storage}`.trim(),
-        category: data.type,
-        brand: data.brand, model: data.model,
-        storage: data.storage, ram: data.ram,
-        batteryHealth: data.batteryHealth, condition: data.condition,
-        warranty: data.warranty, description: data.description,
-        price: data.valuation?.recommended || 500,
-        aiFair: data.valuation?.fair || 500,
-        images: data.images,
-        location: user?.location || 'Singapore',
-        lat: coords.lat, lon: coords.lon,
-        method: data.method,
+      // Convert images to base64
+      const base64Images = await Promise.all(data.imageFiles.map(fileToBase64));
+
+      const body = {
+        title:        `${data.brand} ${data.model} ${data.storage}`,
+        category:     data.type,
+        brand:        data.brand,
+        model:        data.model,
+        storage:      data.storage,
+        ram:          data.ram,
+        batteryHealth:data.batteryHealth,
+        condition:    data.condition,
+        warranty:     data.warranty,
+        description:  data.description,
+        price:        Number(data.price),
+        aiFair:       data.valuation?.fair || null,
+        images:       base64Images,
+        method:       data.method,
       };
-      await api.post('/listings', payload);
-      toast.success('Listing published! Your gadget is live on G2G.');
-      setTimeout(() => navigate('/dashboard'), 600);
-    } catch (e) { toast.error(e.message); }
-    finally { setPublishing(false); }
+
+      const res = await api.post('/listings', body);
+      toast.success('Listing published! Your gadget is now live on G2G.');
+      setTimeout(() => navigate(`/listing/${res.data.id}`), 600);
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : (e?.message || 'Failed to publish listing');
+      if (msg.includes('verification') || msg.includes('KYC') || msg.includes('identity')) {
+        toast.error('You need to complete identity verification before selling. Go to Verify ID.');
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -123,10 +155,13 @@ export default function Sell() {
         </div>
       </div>
 
+      {/* Stepper */}
       <div className="mt-6 hidden gap-2 lg:flex">
         {STEPS.map((s, i) => (
           <div key={s} className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${i < step ? 'bg-teal-500/10 text-teal-700' : i === step ? 'bg-navy text-white' : 'bg-muted text-muted-foreground'}`}>
-            <div className={`grid h-5 w-5 place-items-center rounded-full ${i < step ? 'bg-teal-500 text-white' : i === step ? 'bg-white text-navy' : 'bg-foreground/10'}`}>{i < step ? <Check className="h-3 w-3" /> : i + 1}</div>
+            <div className={`grid h-5 w-5 place-items-center rounded-full ${i < step ? 'bg-teal-500 text-white' : i === step ? 'bg-white text-navy' : 'bg-foreground/10'}`}>
+              {i < step ? <Check className="h-3 w-3" /> : i + 1}
+            </div>
             {s}
           </div>
         ))}
@@ -135,31 +170,48 @@ export default function Sell() {
       <div className="bento-card mt-6 p-6 sm:p-10">
         <AnimatePresence mode="wait">
           <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
+
+            {/* Step 0 — Device type */}
             {step === 0 && (
               <div>
                 <h2 className="font-heading text-2xl font-bold">What are you selling?</h2>
                 <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
                   {DEVICE_TYPES.map(d => (
-                    <button key={d.id} data-testid={`sell-type-${d.id}`} onClick={() => update('type', d.id)} className={`flex flex-col items-center gap-2 rounded-3xl border-2 p-6 transition-all ${data.type === d.id ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border bg-card hover:border-teal-500/40'}`}>
-                      <div className={`grid h-12 w-12 place-items-center rounded-2xl ${data.type === d.id ? 'bg-teal-500 text-white' : 'bg-muted'}`}><d.icon className="h-6 w-6" /></div>
+                    <button
+                      key={d.id}
+                      data-testid={`sell-type-${d.id}`}
+                      onClick={() => update('type', d.id)}
+                      className={`flex flex-col items-center gap-2 rounded-3xl border-2 p-6 transition-all ${data.type === d.id ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border bg-card hover:border-teal-500/40'}`}
+                    >
+                      <div className={`grid h-12 w-12 place-items-center rounded-2xl ${data.type === d.id ? 'bg-teal-500 text-white' : 'bg-muted'}`}>
+                        <d.icon className="h-6 w-6" />
+                      </div>
                       <p className="font-heading font-semibold">{d.label}</p>
                     </button>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Step 1 — Photos */}
             {step === 1 && (
               <div>
                 <h2 className="font-heading text-2xl font-bold">Add photos</h2>
-                <p className="text-sm text-muted-foreground">High-quality photos sell 3x faster. Up to 6 images.</p>
+                <p className="text-sm text-muted-foreground">High-quality photos sell 3× faster. Add up to 6 images.</p>
                 <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4">
-                  {data.images.map((src, i) => (
+                  {data.imagePreviews.map((src, i) => (
                     <div key={i} className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
                       <img src={src} alt="" className="h-full w-full object-cover" />
-                      <button onClick={() => removeImage(i)} className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white" data-testid={`remove-img-${i}`}><X className="h-3 w-3" /></button>
+                      <button
+                        onClick={() => removeImage(i)}
+                        className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white"
+                        data-testid={`remove-img-${i}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                   ))}
-                  {data.images.length < 6 && (
+                  {data.imagePreviews.length < 6 && (
                     <label data-testid="upload-btn" className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/30 hover:bg-muted">
                       <Upload className="h-5 w-5 text-muted-foreground" />
                       <span className="text-xs font-medium text-muted-foreground">Upload</span>
@@ -167,58 +219,56 @@ export default function Sell() {
                     </label>
                   )}
                 </div>
-
-                <div className="mt-8 bento-card border-teal-500/30 p-5">
-                  <p className="font-heading font-semibold">Proof of ownership <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:bg-teal-500/10 dark:text-teal-400">RECOMMENDED</span></p>
-                  <p className="mt-1 text-xs text-muted-foreground">Upload a receipt, box photo, or device IMEI screenshot. Boosts your trust by +5 and helps prevent fraud.</p>
-                  <div className="mt-3 flex items-center gap-3">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm hover:bg-muted" data-testid="proof-upload">
-                      <Upload className="h-4 w-4" /> Upload proof
-                      <input type="file" accept="image/*" className="hidden" onChange={onProofFile} />
-                    </label>
-                    {data.ownershipProof && <span className="text-xs text-teal-700">Uploaded ✓</span>}
-                  </div>
-                </div>
               </div>
             )}
+
+            {/* Step 2 — Details */}
             {step === 2 && (
               <div>
                 <h2 className="font-heading text-2xl font-bold">Device details</h2>
                 <div className="mt-6 grid gap-5 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Brand</Label>
-                    <Select value={data.brand} onValueChange={(v) => update('brand', v)}>
-                      <SelectTrigger className="h-12 rounded-xl" data-testid="sell-brand"><SelectValue /></SelectTrigger>
-                      <SelectContent>{['Apple', 'Samsung', 'Google', 'Sony', 'Microsoft', 'OnePlus', 'Xiaomi', 'Other'].map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+                    <Select value={data.brand} onValueChange={v => update('brand', v)}>
+                      <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {['Apple','Samsung','Google','Sony','Microsoft','OnePlus','Xiaomi','Other'].map(b => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Model</Label>
-                    <Input data-testid="sell-model" value={data.model} onChange={(e) => update('model', e.target.value)} placeholder="e.g. iPhone 15 Pro" className="h-12 rounded-xl" />
+                    <Input data-testid="sell-model" value={data.model} onChange={e => update('model', e.target.value)} placeholder="e.g. iPhone 15 Pro" className="h-12 rounded-xl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Storage</Label>
-                    <Select value={data.storage} onValueChange={(v) => update('storage', v)}>
+                    <Select value={data.storage} onValueChange={v => update('storage', v)}>
                       <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                      <SelectContent>{['64GB', '128GB', '256GB', '512GB', '1TB', '2TB'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>
+                        {['64GB','128GB','256GB','512GB','1TB','2TB'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>RAM</Label>
-                    <Select value={data.ram} onValueChange={(v) => update('ram', v)}>
+                    <Select value={data.ram} onValueChange={v => update('ram', v)}>
                       <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                      <SelectContent>{['4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '32GB'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>
+                        {['4GB','6GB','8GB','12GB','16GB','18GB','32GB'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label>Battery health · {data.batteryHealth}%</Label>
-                    <Slider value={[data.batteryHealth]} min={50} max={100} step={1} onValueChange={(v) => update('batteryHealth', v[0])} data-testid="sell-battery" />
+                    <Slider value={[data.batteryHealth]} min={50} max={100} step={1} onValueChange={v => update('batteryHealth', v[0])} data-testid="sell-battery" />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label>Cosmetic condition</Label>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       {CONDITION_GRADES.map(c => (
-                        <button key={c.id} data-testid={`sell-cond-${c.id}`} onClick={() => update('condition', c.id)} className={`rounded-2xl border-2 p-3 text-left ${data.condition === c.id ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border hover:border-teal-500/40'}`}>
+                        <button key={c.id} data-testid={`sell-cond-${c.id}`} onClick={() => update('condition', c.id)} className={`rounded-2xl border-2 p-3 text-left transition-all ${data.condition === c.id ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border hover:border-teal-500/40'}`}>
                           <p className="font-heading font-bold">{c.id} · {c.label}</p>
                           <p className="text-xs text-muted-foreground">{c.desc}</p>
                         </button>
@@ -227,68 +277,125 @@ export default function Sell() {
                   </div>
                   <div className="space-y-2">
                     <Label>Warranty</Label>
-                    <Select value={data.warranty} onValueChange={(v) => update('warranty', v)}>
+                    <Select value={data.warranty} onValueChange={v => update('warranty', v)}>
                       <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                      <SelectContent>{['No', '< 6 months', '6 - 12 months', '> 12 months'].map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}</SelectContent>
+                      <SelectContent>
+                        {['No','< 6 months','6 - 12 months','> 12 months'].map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label>Description</Label>
-                    <Textarea data-testid="sell-desc" value={data.description} onChange={(e) => update('description', e.target.value)} placeholder="Why is your device special?" rows={4} className="rounded-xl" />
+                    <Textarea data-testid="sell-desc" value={data.description} onChange={e => update('description', e.target.value)} placeholder="Why is your device special? Accessories included, purchase history, etc." rows={4} className="rounded-xl" />
                   </div>
                 </div>
               </div>
             )}
+
+            {/* Step 3 — AI Valuation */}
             {step === 3 && data.valuation && (
               <div>
                 <div className="text-center">
-                  <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-teal-500/30 bg-teal-50/50 px-3 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-500/10"><Sparkles className="h-3 w-3" /> AI Valuation Complete</div>
+                  <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-teal-500/30 bg-teal-50/50 px-3 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-500/10">
+                    <Sparkles className="h-3 w-3" /> AI Valuation Complete
+                  </div>
                   <h2 className="mt-4 font-heading text-3xl font-bold">Your gadget is worth</h2>
-                  <p className="mt-2 font-heading text-6xl font-bold gradient-text">${data.valuation.fair.toLocaleString()}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Confidence: {data.valuation.confidence}% · Quick-sale probability {data.valuation.quickSale}%</p>
+                  <p className="mt-2 font-heading text-6xl font-bold text-teal-600">${data.valuation.fair.toLocaleString()}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Confidence: {data.valuation.confidence}% · Quick-sale probability {data.valuation.quickSale}%
+                  </p>
                 </div>
                 <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                  <div className="bento-card p-5"><p className="text-xs uppercase tracking-wider text-muted-foreground">Dealer offers</p><p className="mt-1 font-heading text-2xl font-bold">${data.valuation.dealerLow} - ${data.valuation.dealerHigh}</p></div>
-                  <div className="bento-card p-5"><p className="text-xs uppercase tracking-wider text-muted-foreground">Suggested sell</p><p className="mt-1 font-heading text-2xl font-bold text-teal-700">${data.valuation.recommended}</p></div>
-                  <div className="bento-card p-5"><p className="text-xs uppercase tracking-wider text-muted-foreground">Demand</p><p className="mt-1 font-heading text-2xl font-bold">{data.valuation.demand}/100</p></div>
+                  <div className="bento-card p-5">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">Dealer offers</p>
+                    <p className="mt-1 font-heading text-2xl font-bold">${data.valuation.dealerLow} – ${data.valuation.dealerHigh}</p>
+                  </div>
+                  <div className="bento-card p-5">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">Suggested sell price</p>
+                    <p className="mt-1 font-heading text-2xl font-bold text-teal-700">${data.valuation.recommended}</p>
+                  </div>
+                  <div className="bento-card p-5">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">Market demand</p>
+                    <p className="mt-1 font-heading text-2xl font-bold">{data.valuation.demand}/100</p>
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* Step 4 — Pricing & method */}
             {step === 4 && (
-              <div>
-                <h2 className="font-heading text-2xl font-bold">How would you like to sell?</h2>
-                <RadioGroup value={data.method} onValueChange={(v) => update('method', v)} className="mt-6 space-y-3">
-                  {[
-                    { id: 'individual', t: 'Sell to individual buyer', d: 'List publicly. Negotiate directly. Best for top price.' },
-                    { id: 'dealer', t: 'Sell to dealer', d: 'Instant offers from verified dealers. Fast & guaranteed.' },
-                    { id: 'both', t: 'Both (recommended)', d: 'Get dealer offers while listed publicly. Sell to whoever pays best.' },
-                  ].map(o => (
-                    <label key={o.id} data-testid={`sell-method-${o.id}`} className={`flex cursor-pointer items-start gap-4 rounded-3xl border-2 p-5 transition-all ${data.method === o.id ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border hover:border-teal-500/40'}`}>
-                      <RadioGroupItem value={o.id} className="mt-1" />
-                      <div>
-                        <p className="font-heading font-bold">{o.t}</p>
-                        <p className="text-sm text-muted-foreground">{o.d}</p>
-                      </div>
-                    </label>
-                  ))}
-                </RadioGroup>
+              <div className="space-y-8">
+                <div>
+                  <h2 className="font-heading text-2xl font-bold">Set your price</h2>
+                  {data.valuation && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      AI suggests <span className="font-semibold text-teal-600">${data.valuation.recommended}</span> · Fair market value ${data.valuation.fair}
+                    </p>
+                  )}
+                  <div className="mt-4 relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xl font-bold text-muted-foreground">$</span>
+                    <Input
+                      data-testid="sell-price"
+                      type="number"
+                      min="1"
+                      value={data.price}
+                      onChange={e => update('price', e.target.value)}
+                      placeholder="0"
+                      className="h-14 rounded-xl pl-8 font-heading text-xl font-bold"
+                    />
+                  </div>
+                  {data.valuation && Number(data.price) > 0 && (
+                    <p className={`mt-2 text-xs ${Number(data.price) > data.valuation.fair * 1.15 ? 'text-rose-600' : Number(data.price) < data.valuation.fair * 0.8 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {Number(data.price) > data.valuation.fair * 1.15
+                        ? '⚠ Price is above market rate — may take longer to sell'
+                        : Number(data.price) < data.valuation.fair * 0.8
+                          ? '🔥 Priced below market — will sell very quickly!'
+                          : '✓ Competitive price — good chance of selling fast'}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <h2 className="font-heading text-xl font-bold">How would you like to sell?</h2>
+                  <RadioGroup value={data.method} onValueChange={v => update('method', v)} className="mt-4 space-y-3">
+                    {[
+                      { id: 'individual', t: 'Sell to individual buyer',   d: 'List publicly. Negotiate directly. Best for top price.' },
+                      { id: 'dealer',     t: 'Sell to dealer',             d: 'Instant offers from verified dealers. Fast & guaranteed.' },
+                      { id: 'both',       t: 'Both (recommended)',         d: 'Get dealer offers while listed publicly. Sell to whoever pays best.' },
+                    ].map(o => (
+                      <label key={o.id} data-testid={`sell-method-${o.id}`} className={`flex cursor-pointer items-start gap-4 rounded-3xl border-2 p-5 transition-all ${data.method === o.id ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border hover:border-teal-500/40'}`}>
+                        <RadioGroupItem value={o.id} className="mt-1" />
+                        <div>
+                          <p className="font-heading font-bold">{o.t}</p>
+                          <p className="text-sm text-muted-foreground">{o.d}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </div>
               </div>
             )}
+
+            {/* Step 5 — Review & Publish */}
             {step === 5 && (
               <div className="text-center">
-                <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-teal-500/10 text-teal-600"><CheckCircle2 className="h-10 w-10" strokeWidth={1.5} /></div>
+                <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-teal-500/10 text-teal-600">
+                  <CheckCircle2 className="h-10 w-10" strokeWidth={1.5} />
+                </div>
                 <h2 className="mt-4 font-heading text-3xl font-bold">Ready to publish</h2>
-                <p className="mt-2 text-muted-foreground">Your listing will be live to 124,000+ verified buyers.</p>
+                <p className="mt-2 text-muted-foreground">Your listing will be live to verified buyers instantly.</p>
                 <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
-                  <Summary label="Device" value={`${data.brand} ${data.model}`} />
-                  <Summary label="Storage / RAM" value={`${data.storage} · ${data.ram}`} />
-                  <Summary label="Condition" value={`${data.condition} · ${CONDITION_GRADES.find(c => c.id === data.condition)?.label}`} />
-                  <Summary label="Battery" value={`${data.batteryHealth}%`} />
-                  <Summary label="AI Suggested price" value={`$${data.valuation?.recommended}`} />
-                  <Summary label="Method" value={data.method} />
+                  <Summary label="Device"            value={`${data.brand} ${data.model}`} />
+                  <Summary label="Storage / RAM"     value={`${data.storage} · ${data.ram}`} />
+                  <Summary label="Condition"         value={`${data.condition} · ${CONDITION_GRADES.find(c => c.id === data.condition)?.label}`} />
+                  <Summary label="Battery"           value={`${data.batteryHealth}%`} />
+                  <Summary label="Your price"        value={`$${data.price}`} />
+                  <Summary label="AI fair value"     value={data.valuation ? `$${data.valuation.fair}` : '—'} />
+                  <Summary label="Sell method"       value={data.method} />
+                  <Summary label="Photos"            value={`${data.imagePreviews.length} uploaded`} />
                 </div>
               </div>
             )}
+
           </motion.div>
         </AnimatePresence>
 
@@ -297,9 +404,14 @@ export default function Sell() {
             <ChevronLeft className="mr-1 h-4 w-4" />Back
           </Button>
           {step < STEPS.length - 1 ? (
-            <Button onClick={next} data-testid="sell-next" className="h-11 rounded-full bg-navy px-6 hover:bg-navy-700">{step === 2 ? 'Run AI valuation' : 'Continue'}<ChevronRight className="ml-1 h-4 w-4" /></Button>
+            <Button onClick={next} data-testid="sell-next" className="h-11 rounded-full bg-navy px-6 hover:bg-navy-700">
+              {step === 2 ? 'Run AI valuation' : 'Continue'}
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
           ) : (
-            <Button onClick={publish} disabled={publishing} data-testid="sell-publish" className="h-11 rounded-full bg-teal-500 px-6 hover:bg-teal-600">{publishing ? 'Publishing…' : 'Publish listing'}</Button>
+            <Button onClick={publish} disabled={publishing} data-testid="sell-publish" className="h-11 rounded-full bg-teal-500 px-6 hover:bg-teal-600">
+              {publishing ? 'Publishing…' : 'Publish listing'}
+            </Button>
           )}
         </div>
       </div>

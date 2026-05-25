@@ -735,11 +735,65 @@ async def create_payment(body: PaymentCreate, user: dict = Depends(get_current_u
     return payment
 
 
+async def maybe_auto_release(p: dict):
+    """Auto-release escrow after 7-day protection window if no open refund."""
+    if p.get("status") != "escrow":
+        return p
+    protection_ends = p.get("protectionEndsAt")
+    if not protection_ends:
+        return p
+    try:
+        ends_dt = datetime.fromisoformat(protection_ends.replace("Z", "+00:00"))
+    except Exception:
+        return p
+    if datetime.now(timezone.utc) < ends_dt:
+        return p
+    open_refund = await db.refunds.find_one({
+        "paymentId": p["id"],
+        "status": {"$in": ["pending", "rejected", "under_admin_review"]},
+    })
+    if open_refund:
+        return p
+    await db.payments.update_one(
+        {"id": p["id"]},
+        {"$set": {"status": "completed", "releasedAt": now(), "autoReleased": True}}
+    )
+    await db.users.update_one({"id": p["sellerId"]}, {"$inc": {"walletBalance": p["amount"]}})
+    await db.wallet_transactions.insert_one({
+        "id": newid(), "userId": p["sellerId"], "type": "sale",
+        "amount": p["amount"],
+        "description": f"Auto-released after buyer protection expired — {p.get('title', '')}",
+        "createdAt": now(),
+    })
+    await db.notifications.insert_one({
+        "id": newid(), "userId": p["sellerId"], "type": "payment",
+        "title": "Payment auto-released",
+        "text": f"${p['amount']:.0f} released after 7-day buyer protection period.",
+        "icon": "Wallet", "createdAt": now(), "unread": True,
+    })
+    p = dict(p)
+    p["status"] = "completed"
+    p["autoReleased"] = True
+    return p
+
+
 @api.get("/payments/mine")
 async def my_payments(user: dict = Depends(get_current_user)):
-    bought = await db.payments.find({"buyerId": user["id"]}, {"_id": 0}).to_list(200)
-    sold = await db.payments.find({"sellerId": user["id"]}, {"_id": 0}).to_list(200)
+    bought_raw = await db.payments.find({"buyerId": user["id"]}, {"_id": 0}).to_list(200)
+    sold_raw = await db.payments.find({"sellerId": user["id"]}, {"_id": 0}).to_list(200)
+    bought = [await maybe_auto_release(p) for p in bought_raw]
+    sold = [await maybe_auto_release(p) for p in sold_raw]
     return {"bought": bought, "sold": sold}
+
+
+@api.get("/payments/{payment_id}")
+async def get_payment(payment_id: str, user: dict = Depends(get_current_user)):
+    p = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    if not p:
+        raise HTTPException(404, "Payment not found")
+    if user["id"] not in (p["buyerId"], p["sellerId"]) and user.get("role") != "admin":
+        raise HTTPException(403, "Forbidden")
+    return p
 
 
 @api.post("/payments/{payment_id}/confirm")
@@ -749,8 +803,30 @@ async def confirm_receipt(payment_id: str, user: dict = Depends(get_current_user
         raise HTTPException(404, "Payment not found")
     if p["buyerId"] != user["id"]:
         raise HTTPException(403, "Only the buyer can confirm receipt")
+
+    # ── FIX: Idempotency guard — block if already confirmed or refunded ────
+    # Prevents double-clicking or re-calling confirm after it succeeded.
+    if p["status"] == "released":
+        raise HTTPException(400, "You have already confirmed receipt for this payment.")
+    if p["status"] == "refunded":
+        raise HTTPException(400, "This payment has been refunded and cannot be confirmed.")
     if p["status"] != "escrow":
-        raise HTTPException(400, "Payment is not in escrow")
+        raise HTTPException(400, f"Payment cannot be confirmed (status: {p['status']}).")
+    # ── END FIX ────────────────────────────────────────────────────────────
+
+    # ── FIX: Block "Mark as received" while an open refund exists ──────────
+    open_refund = await db.refunds.find_one({
+        "paymentId": payment_id,
+        "status": {"$in": ["pending", "rejected", "under_admin_review"]},
+    })
+    if open_refund:
+        raise HTTPException(
+            409,
+            f"A refund request is open for this payment (status: {open_refund['status']}). "
+            "Resolve the dispute before confirming receipt."
+        )
+    # ── END FIX ────────────────────────────────────────────────────────────
+
     await db.payments.update_one({"id": payment_id}, {"$set": {"status": "released", "releasedAt": now()}})
     await db.users.update_one({"id": p["sellerId"]}, {"$inc": {"walletBalance": p["amount"]}})
     await db.wallet_transactions.insert_one({
@@ -790,8 +866,24 @@ async def wallet_transactions(user: dict = Depends(get_current_user)):
     # Compute breakdown
     bought_escrow = await db.payments.find({"buyerId": user["id"], "status": "escrow"}, {"_id": 0, "amount": 1}).to_list(500)
     pending = sum(p["amount"] for p in bought_escrow)
-    refund_pending = await db.refunds.find({"buyerId": user["id"], "status": {"$in": ["pending", "under_admin_review"]}}, {"_id": 0, "amount": 1}).to_list(500)
-    refund_balance = sum(r["amount"] for r in refund_pending)
+
+    # ── FIX: refundPending — one refund per payment (no accumulation) ──────
+    # Previously, if a buyer filed multiple refunds on the same payment
+    # (before the duplicate-creation guard was added), each one added to
+    # refundPending, inflating the balance. Now we only count one active
+    # refund per unique paymentId to be safe.
+    refund_pending_docs = await db.refunds.find(
+        {"buyerId": user["id"], "status": {"$in": ["pending", "under_admin_review"]}},
+        {"_id": 0, "amount": 1, "paymentId": 1}
+    ).to_list(500)
+    seen_payments: set = set()
+    refund_balance = 0.0
+    for rr in refund_pending_docs:
+        if rr["paymentId"] not in seen_payments:
+            seen_payments.add(rr["paymentId"])
+            refund_balance += rr["amount"]
+    # ── END FIX ────────────────────────────────────────────────────────────
+
     fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "walletBalance": 1})
     return {
         "balance": fresh.get("walletBalance", 0),
@@ -847,6 +939,19 @@ async def listing_counts():
     return {"byCategory": cats, "total": total}
 
 
+@api.get("/payments/{payment_id}/refund")
+async def get_payment_refund(payment_id: str, user: dict = Depends(get_current_user)):
+    """Returns the refund record for a payment (if any). Used by frontend to
+    disable the Refund and Mark-as-received buttons once a refund is filed."""
+    p = await db.payments.find_one({"id": payment_id})
+    if not p:
+        raise HTTPException(404, "Payment not found")
+    if user["id"] not in (p["buyerId"], p["sellerId"]) and user.get("role") != "admin":
+        raise HTTPException(403, "Forbidden")
+    refund = await db.refunds.find_one({"paymentId": payment_id}, {"_id": 0})
+    return refund or {}
+
+
 @api.post("/refunds")
 async def request_refund(body: RefundCreate, user: dict = Depends(get_current_user)):
     p = await db.payments.find_one({"id": body.paymentId})
@@ -854,6 +959,18 @@ async def request_refund(body: RefundCreate, user: dict = Depends(get_current_us
         raise HTTPException(404, "Payment not found")
     if p["status"] != "escrow":
         raise HTTPException(400, "Cannot refund — payment already released")
+
+    # ── FIX: Block duplicate refund requests on the same payment ───────────
+    # Without this, the buyer can spam POST /refunds and each one adds to
+    # refundPending in the wallet, causing the balance to inflate.
+    existing_refund = await db.refunds.find_one({"paymentId": body.paymentId})
+    if existing_refund:
+        raise HTTPException(
+            409,
+            f"A refund request already exists for this payment (status: {existing_refund['status']}). "
+            "You cannot file more than one refund per transaction."
+        )
+    # ── END FIX ────────────────────────────────────────────────────────────
     refund = {
         "id": newid(), "paymentId": p["id"], "listingId": p.get("listingId"),
         "buyerId": user["id"], "buyerName": user["name"], "buyerAvatar": user.get("avatar", ""),
@@ -887,10 +1004,23 @@ async def seller_respond_refund(refund_id: str, body: RefundRespond, user: dict 
         raise HTTPException(404, "Refund not found")
     if r["sellerId"] != user["id"]:
         raise HTTPException(403, "Only the seller can respond to this refund")
-    if r["status"] not in ("pending", "under_admin_review"):
-        raise HTTPException(400, "Refund cannot be modified in its current state")
+
+    # ── FIX: Strict state-machine guard ────────────────────────────────────
+    # Terminal states — no further changes allowed by any party.
+    if r["status"] in ("refunded", "closed"):
+        raise HTTPException(400, f"Refund is already {r['status']}. No further actions allowed.")
+    # Seller can only respond when the refund is still 'pending'.
+    # 'under_admin_review' is now in admin hands — seller cannot override it.
+    # 'rejected' means seller already responded — cannot respond twice.
+    if r["status"] != "pending":
+        raise HTTPException(
+            400,
+            f"Cannot respond: refund is '{r['status']}'. Seller can only respond to 'pending' refunds."
+        )
+    # ── END FIX ────────────────────────────────────────────────────────────
+
     if body.action == "accept":
-        # Auto-refund: mark payment refunded, return funds (in demo, we just close)
+        # Auto-refund: mark payment refunded, return funds to buyer wallet
         await db.refunds.update_one({"id": refund_id}, {"$set": {"status": "refunded", "updatedAt": now()}})
         await db.payments.update_one({"id": r["paymentId"]}, {"$set": {"status": "refunded"}})
         await db.notifications.insert_one({
@@ -899,7 +1029,8 @@ async def seller_respond_refund(refund_id: str, body: RefundRespond, user: dict 
             "text": f"${r['amount']:.0f} will be returned to your wallet.",
             "icon": "RotateCcw", "createdAt": now(), "unread": True,
         })
-        # Record buyer wallet transaction
+        # Credit buyer wallet
+        await db.users.update_one({"id": r["buyerId"]}, {"$inc": {"walletBalance": r["amount"]}})
         await db.wallet_transactions.insert_one({
             "id": newid(), "userId": r["buyerId"], "type": "refund",
             "amount": r["amount"], "description": f"Refund for {r.get('title','')}",
@@ -922,7 +1053,7 @@ async def seller_respond_refund(refund_id: str, body: RefundRespond, user: dict 
             "icon": "RotateCcw", "createdAt": now(), "unread": True,
         })
     else:
-        raise HTTPException(400, "Invalid action")
+        raise HTTPException(400, "Invalid action. Expected: accept | reject | request_info")
     return {"ok": True}
 
 
@@ -931,8 +1062,22 @@ async def escalate_refund(refund_id: str, body: RefundEscalate, user: dict = Dep
     r = await db.refunds.find_one({"id": refund_id})
     if not r or r["buyerId"] != user["id"]:
         raise HTTPException(404, "Refund not found")
-    if r["status"] not in ("rejected", "pending"):
-        raise HTTPException(400, "Only rejected/pending refunds can be escalated")
+
+    # ── FIX: Strict escalation guard ───────────────────────────────────────
+    # Terminal states — nothing to escalate.
+    if r["status"] in ("refunded", "closed"):
+        raise HTTPException(400, f"Refund is already {r['status']}. No further actions allowed.")
+    # Buyer may ONLY escalate after the seller has explicitly rejected.
+    # Escalating a 'pending' refund skips the seller's right to respond first.
+    # Escalating 'under_admin_review' is redundant (already with admin).
+    if r["status"] != "rejected":
+        raise HTTPException(
+            400,
+            f"Cannot escalate: refund is '{r['status']}'. "
+            "Escalation is only available after the seller rejects the request."
+        )
+    # ── END FIX ────────────────────────────────────────────────────────────
+
     await db.refunds.update_one({"id": refund_id}, {"$set": {"status": "under_admin_review", "escalationReason": body.reason, "updatedAt": now()}})
     admins = await db.users.find({"role": "admin"}, {"_id": 0, "id": 1}).to_list(20)
     for a in admins:
@@ -985,6 +1130,12 @@ async def refund_message(refund_id: str, body: RefundMessage, user: dict = Depen
     return msg
 
 
+@api.get("/refunds/mine")
+async def my_refunds(user: dict = Depends(get_current_user)):
+    items = await db.refunds.find({"$or": [{"buyerId": user["id"]}, {"sellerId": user["id"]}]}, {"_id": 0}).sort("createdAt", -1).to_list(200)
+    return items
+
+
 @api.get("/refunds/{refund_id}")
 async def get_refund(refund_id: str, user: dict = Depends(get_current_user)):
     r = await db.refunds.find_one({"id": refund_id}, {"_id": 0})
@@ -994,11 +1145,6 @@ async def get_refund(refund_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(403, "Not your refund")
     return r
 
-
-@api.get("/refunds/mine")
-async def my_refunds(user: dict = Depends(get_current_user)):
-    items = await db.refunds.find({"$or": [{"buyerId": user["id"]}, {"sellerId": user["id"]}]}, {"_id": 0}).sort("createdAt", -1).to_list(200)
-    return items
 
 
 # ---------------- Reviews ----------------
@@ -1231,6 +1377,8 @@ async def admin_refund_action(rid: str, body: AdminAction, _=Depends(require_adm
     if body.action == "force_refund":
         await db.refunds.update_one({"id": rid}, {"$set": {"status": "refunded", "adminNotes": body.notes, "updatedAt": now()}})
         await db.payments.update_one({"id": rec["paymentId"]}, {"$set": {"status": "refunded"}})
+        # Credit buyer wallet
+        await db.users.update_one({"id": rec["buyerId"]}, {"$inc": {"walletBalance": rec["amount"]}})
         await db.wallet_transactions.insert_one({
             "id": newid(), "userId": rec["buyerId"], "type": "refund",
             "amount": rec["amount"], "description": f"Admin-approved refund — {rec.get('title','')}",
@@ -1268,7 +1416,26 @@ async def admin_analytics(_=Depends(require_admin)):
     async for p in db.payments.find({"status": {"$in": ["released", "completed"]}}, {"_id": 0, "amount": 1}):
         revenue += p["amount"]
     pending_kyc = await db.verifications.count_documents({"status": "pending"})
-    return {"users": users, "listings": listings, "payments": payments, "revenue": revenue, "pendingKyc": pending_kyc}
+
+    # ── FIX: Add open refunds + open reports counts ────────────────────────
+    # These were missing, so the admin dashboard showed no refund totals.
+    open_refunds = await db.refunds.count_documents(
+        {"status": {"$in": ["pending", "rejected", "under_admin_review"]}}
+    )
+    open_reports = await db.reports.count_documents({"status": "pending"})
+    verified_users = await db.users.count_documents({"kycStatus": "approved", "role": {"$ne": "admin"}})
+    # ── END FIX ────────────────────────────────────────────────────────────
+
+    return {
+        "users": users,
+        "listings": listings,
+        "payments": payments,
+        "revenue": revenue,
+        "pendingKyc": pending_kyc,
+        "openRefunds": open_refunds,
+        "openReports": open_reports,
+        "verifiedUsers": verified_users,
+    }
 
 
 # ---------------- Seed ----------------
