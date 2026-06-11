@@ -130,7 +130,7 @@ export default function Layout({ children }) {
                 <Wallet className="h-4 w-4" />
                 <p className="text-xs font-semibold uppercase tracking-wider">Wallet</p>
               </div>
-              <p className="mt-2 font-heading text-2xl font-bold text-foreground">${user?.walletBalance ?? 0}</p>
+              <p className="mt-2 font-heading text-2xl font-bold text-foreground">RM {user?.walletBalance ?? 0}</p>
               <p className="text-xs text-muted-foreground">Available to withdraw</p>
             </div>
             <div className="rounded-3xl bg-navy p-4 text-white">

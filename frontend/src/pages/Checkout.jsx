@@ -54,7 +54,7 @@ export default function Checkout() {
             <div className="mt-4 space-y-3">
               {[
                 { v: 'card', i: CreditCard, t: 'Credit / Debit Card', d: 'Visa, Mastercard, Amex' },
-                { v: 'wallet', i: WalletIcon, t: 'G2G Wallet', d: `Balance: $${user?.walletBalance || 0}` },
+                { v: 'wallet', i: WalletIcon, t: 'G2G Wallet', d: `Balance: RM ${user?.walletBalance || 0}` },
               ].map(o => (
                 <label key={o.v} data-testid={`pm-${o.v}`} className={`flex cursor-pointer items-center gap-4 rounded-2xl border-2 p-4 ${method === o.v ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border'}`}>
                   <input type="radio" checked={method === o.v} onChange={() => setMethod(o.v)} className="accent-teal-600" />
@@ -96,9 +96,9 @@ export default function Checkout() {
             </div>
           </div>
           <div className="mt-5 space-y-2 text-sm">
-            <Row l="Item price" v={`$${Number(product.price).toLocaleString()}`} />
+            <Row l="Item price" v={`RM ${Number(product.price).toLocaleString()}`} />
             <Row l="Service fee" v="Free" />
-            <Row l="Delivery" v="$0 (G2G Express)" />
+            <Row l="Delivery" v="RM 0 (G2G Express)" />
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <p className="font-heading text-base font-bold">Total</p>
               <p className="font-heading text-2xl font-bold">${Number(product.price).toLocaleString()}</p>

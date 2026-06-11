@@ -113,7 +113,7 @@ export default function Admin() {
             { i: Users, l: 'Total users', v: analytics.users || 0, c: 'from-teal-500 to-teal-700' },
             { i: BadgeCheck, l: 'Verified users', v: analytics.verifiedUsers || 0, c: 'from-emerald-500 to-emerald-700' },
             { i: Package, l: 'Active listings', v: analytics.listings || 0, c: 'from-sky-500 to-sky-700' },
-            { i: WalletIcon, l: 'Revenue', v: `$${analytics.revenue || 0}`, c: 'from-amber-500 to-amber-700' },
+            { i: WalletIcon, l: 'Revenue', v: `RM ${analytics.revenue || 0}`, c: 'from-amber-500 to-amber-700' },
             { i: ShieldAlert, l: 'Pending KYC', v: analytics.pendingKyc || 0, c: 'from-orange-500 to-orange-700' },
             { i: Flag, l: 'Open reports', v: analytics.openReports || 0, c: 'from-rose-500 to-rose-700' },
             { i: RotateCcw, l: 'Open refunds', v: analytics.openRefunds || 0, c: 'from-fuchsia-500 to-fuchsia-700' },
@@ -158,7 +158,7 @@ export default function Admin() {
                   {r.image && <img src={r.image} alt="" className="h-16 w-16 rounded-xl object-cover" />}
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 font-heading font-semibold">{r.title}</p>
-                    <p className="text-xs text-white/60">${r.amount} · {r.buyerName} ↔ {r.sellerName}</p>
+                    <p className="text-xs text-white/60">RM {r.amount} · {r.buyerName} ↔ {r.sellerName}</p>
                     <p className="line-clamp-1 mt-1 text-xs text-white/70">{r.reason}</p>
                   </div>
                   <div className="text-right">
@@ -277,7 +277,7 @@ export default function Admin() {
                 <img src={l.images?.[0]} alt="" className="h-16 w-16 rounded-xl object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-1 font-heading font-semibold">{l.title}</p>
-                  <p className="text-xs text-white/60">{l.seller?.name} · ${l.price} · <span className="capitalize">{l.status}</span></p>
+                  <p className="text-xs text-white/60">{l.seller?.name} · RM {l.price} · <span className="capitalize">{l.status}</span></p>
                 </div>
                 <Button data-testid={`remove-${l.id}`} variant="outline" onClick={() => removeListing(l.id)} className="rounded-full border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20" size="sm"><Trash2 className="mr-1 h-3 w-3" />Remove</Button>
               </div>
@@ -291,7 +291,7 @@ export default function Admin() {
         <DialogContent className="max-w-3xl">
           {refundDetail && (
             <>
-              <DialogHeader><DialogTitle>Refund dispute — ${refundDetail.amount}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Refund dispute — RM {refundDetail.amount}</DialogTitle></DialogHeader>
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3">
                   <div className="rounded-2xl border p-3">

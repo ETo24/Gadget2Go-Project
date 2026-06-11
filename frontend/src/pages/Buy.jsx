@@ -53,7 +53,7 @@ function FilterPanel({ cat, setCat, brands, toggleBrand, conds, toggleCond, pric
         <p className="font-heading text-sm font-bold uppercase tracking-wider">Price</p>
         <div className="mt-3">
           <Slider value={[priceMax]} max={2500} step={50} onValueChange={v => setPriceMax(v[0])} />
-          <p className="mt-2 text-sm text-muted-foreground">Up to <span className="font-semibold text-foreground">${priceMax}</span></p>
+          <p className="mt-2 text-sm text-muted-foreground">Up to <span className="font-semibold text-foreground">RM {priceMax}</span></p>
         </div>
       </div>
       <div>
@@ -116,9 +116,9 @@ function ListingCard({ listing, view, onClick }) {
           <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{listing.description}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="font-heading text-xl font-bold">${listing.price}</p>
+          <p className="font-heading text-xl font-bold">RM {listing.price}</p>
           {listing.aiFair && listing.aiFair !== listing.price && (
-            <p className="text-xs text-muted-foreground">AI fair: ${listing.aiFair}</p>
+            <p className="text-xs text-muted-foreground">AI fair: RM {listing.aiFair}</p>
           )}
           <div className="mt-1 flex items-center justify-end gap-1 text-xs">
             <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
@@ -152,7 +152,7 @@ function ListingCard({ listing, view, onClick }) {
       <div className="p-4">
         <p className="font-heading font-bold line-clamp-2 leading-snug">{listing.title}</p>
         <div className="mt-2 flex items-center justify-between">
-          <p className="font-heading text-xl font-bold">${listing.price}</p>
+          <p className="font-heading text-xl font-bold">RM {listing.price}</p>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
             {seller.rating?.toFixed(1)} · {seller.name}

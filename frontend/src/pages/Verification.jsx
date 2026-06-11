@@ -21,6 +21,17 @@ export default function Verification() {
   const [selfie, setSelfie] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [record, setRecord] = useState(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const trustScore = typeof user?.trustScore === 'object'
+  ? (user.trustScore.score ?? 0)
+  : (user?.trustScore ?? 0);
+  const trustBreakdown = user?.trustBreakdown || {
+    kyc: 0,
+    transactions: 0,
+    ratings: 0,
+    reports: 0,
+    refunds: 0,
+  };
 
   useEffect(() => { api.get('/verifications/me').then(r => setRecord(r.data)).catch(() => {}); }, []);
 
@@ -38,17 +49,137 @@ export default function Verification() {
   };
 
   if (user?.kycStatus === 'approved') {
-    return (
-      <div className="mx-auto max-w-2xl text-center">
-        <div className="bento-card p-10">
-          <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20"><CheckCircle2 className="h-10 w-10" strokeWidth={1.5} /></div>
-          <h1 className="mt-4 font-heading text-3xl font-bold">You're verified</h1>
-          <p className="mt-2 text-muted-foreground">You can now list gadgets, receive payments, and earn the Verified Seller badge.</p>
-          <Button onClick={() => navigate('/sell')} data-testid="goto-sell" className="mt-6 rounded-full bg-navy hover:bg-navy-700">Start selling</Button>
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+
+      {/* VERIFIED CARD */}
+      <div className="bento-card p-10 text-center">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20">
+          <CheckCircle2 className="h-10 w-10" strokeWidth={1.5} />
         </div>
+
+        <h1 className="mt-4 font-heading text-3xl font-bold">
+          You're verified
+        </h1>
+
+        <p className="mt-2 text-muted-foreground">
+          You can now list gadgets, receive payments, and earn the Verified Seller badge.
+        </p>
+
+        <Button
+          onClick={() => navigate('/sell')}
+          data-testid="goto-sell"
+          className="mt-6 rounded-full bg-navy hover:bg-navy-700"
+        >
+          Start selling
+        </Button>
       </div>
-    );
-  }
+
+      {/* TRUST SCORE CARD */}
+      <div className="bento-card p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="font-heading text-xl font-bold">
+              Trust Score
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Based on your account activity and marketplace reputation.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowBreakdown(!showBreakdown)}
+            className="text-sm text-teal-600 hover:underline"
+          >
+            {showBreakdown ? 'Hide details' : 'Show details'}
+          </button>
+        </div>
+
+        <div className="mt-6 text-center">
+          <p className="text-5xl font-bold text-navy">{trustScore}</p>
+        </div>
+
+        <div className="mt-6">
+          <div className="h-3 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+            <div
+              className="h-3 rounded-full bg-teal-500 transition-all duration-300"
+              style={{ width: `${trustScore}%` }}
+            />
+          </div>
+
+          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+            <span>0</span>
+            <span>100</span>
+          </div>
+        </div>
+
+        {showBreakdown && (
+          <div className="mt-6 border-t pt-4">
+            <p className="mb-4 text-sm text-muted-foreground">Trust score contribution breakdown</p>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span>KYC Verification</span>
+                <span className="font-semibold text-emerald-600">
+                  +{trustBreakdown.kyc ?? 0}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                 <span>Email Verified</span>
+                 <span className="font-semibold text-emerald-600">
+                    +{trustBreakdown.email ?? 0}
+                 </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Phone Verified</span>
+                <span className="font-semibold text-emerald-600">
+                    +{trustBreakdown.phone ?? 0}
+                </span>
+               </div>
+
+              <div className="flex justify-between">
+                <span>Successful Transactions</span>
+                <span className="font-semibold text-teal-600">
+                  +{trustBreakdown.transactions ?? 0}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>User Ratings</span>
+                <span className="font-semibold text-blue-600">
+                  +{trustBreakdown.ratings ?? 0}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Reports</span>
+                <span className="font-semibold text-red-500">
+                  {trustBreakdown.reports ?? 0}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Refunds</span>
+                <span className="font-semibold text-red-500">
+                  {trustBreakdown.refunds ?? 0}
+                </span>
+              </div>
+
+              <div className="border-t pt-3 flex justify-between font-bold">
+                <span>Total Score</span>
+                <span>{trustScore}</span>
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
 
   if (user?.kycStatus === 'pending' || record?.status === 'pending') {
     return (

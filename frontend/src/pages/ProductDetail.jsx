@@ -94,9 +94,9 @@ export default function ProductDetail() {
           <h1 className="mt-2 font-heading text-3xl font-bold sm:text-4xl">{product.title}</h1>
           <div className="mt-4 flex items-end gap-4">
             <div>
-              <p className="font-heading text-4xl font-bold">${Number(product.price).toLocaleString()}</p>
+              <p className="font-heading text-4xl font-bold">RM {Number(product.price).toLocaleString()}</p>
               <p className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-teal-700 dark:text-teal-400">
-                <Sparkles className="h-4 w-4" />AI fair price: ${Number(product.aiFair).toLocaleString()} {aiDelta > 0 && <span className="ml-1 rounded-full bg-emerald-50 px-2 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Good deal ${aiDelta}</span>}
+                <Sparkles className="h-4 w-4" />AI fair price: RM {Number(product.aiFair).toLocaleString()} {aiDelta > 0 && <span className="ml-1 rounded-full bg-emerald-50 px-2 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Good deal RM {aiDelta}</span>}
               </p>
             </div>
           </div>
@@ -183,7 +183,7 @@ export default function ProductDetail() {
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="shipping" className="mt-6"><div className="bento-card p-6"><div className="flex items-center gap-3"><Truck className="h-5 w-5 text-teal-600" /> <p>Delivery in 2–3 working days via G2G Express.</p></div><p className="mt-2 text-sm text-muted-foreground">Free delivery for orders above $500. Real-time tracking with Cybridge logistics.</p></div></TabsContent>
+        <TabsContent value="shipping" className="mt-6"><div className="bento-card p-6"><div className="flex items-center gap-3"><Truck className="h-5 w-5 text-teal-600" /> <p>Delivery in 2–3 working days via G2G Express.</p></div><p className="mt-2 text-sm text-muted-foreground">Free delivery for orders above RM 500. Real-time tracking with Cybridge logistics.</p></div></TabsContent>
       </Tabs>
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>

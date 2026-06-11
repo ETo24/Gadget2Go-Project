@@ -300,7 +300,7 @@ export default function Sell() {
                     <Sparkles className="h-3 w-3" /> AI Valuation Complete
                   </div>
                   <h2 className="mt-4 font-heading text-3xl font-bold">Your gadget is worth</h2>
-                  <p className="mt-2 font-heading text-6xl font-bold text-teal-600">${data.valuation.fair.toLocaleString()}</p>
+                  <p className="mt-2 font-heading text-6xl font-bold text-teal-600">RM {data.valuation.fair.toLocaleString()}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Confidence: {data.valuation.confidence}% · Quick-sale probability {data.valuation.quickSale}%
                   </p>
@@ -308,11 +308,11 @@ export default function Sell() {
                 <div className="mt-8 grid gap-4 sm:grid-cols-3">
                   <div className="bento-card p-5">
                     <p className="text-xs uppercase tracking-wider text-muted-foreground">Dealer offers</p>
-                    <p className="mt-1 font-heading text-2xl font-bold">${data.valuation.dealerLow} – ${data.valuation.dealerHigh}</p>
+                    <p className="mt-1 font-heading text-2xl font-bold">RM {data.valuation.dealerLow} – RM {data.valuation.dealerHigh}</p>
                   </div>
                   <div className="bento-card p-5">
                     <p className="text-xs uppercase tracking-wider text-muted-foreground">Suggested sell price</p>
-                    <p className="mt-1 font-heading text-2xl font-bold text-teal-700">${data.valuation.recommended}</p>
+                    <p className="mt-1 font-heading text-2xl font-bold text-teal-700">RM {data.valuation.recommended}</p>
                   </div>
                   <div className="bento-card p-5">
                     <p className="text-xs uppercase tracking-wider text-muted-foreground">Market demand</p>
@@ -329,11 +329,11 @@ export default function Sell() {
                   <h2 className="font-heading text-2xl font-bold">Set your price</h2>
                   {data.valuation && (
                     <p className="mt-1 text-sm text-muted-foreground">
-                      AI suggests <span className="font-semibold text-teal-600">${data.valuation.recommended}</span> · Fair market value ${data.valuation.fair}
+                      AI suggests <span className="font-semibold text-teal-600">RM {data.valuation.recommended}</span> · Fair market value RM {data.valuation.fair}
                     </p>
                   )}
                   <div className="mt-4 relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xl font-bold text-muted-foreground">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xl font-bold text-muted-foreground">RM</span>
                     <Input
                       data-testid="sell-price"
                       type="number"
@@ -388,8 +388,8 @@ export default function Sell() {
                   <Summary label="Storage / RAM"     value={`${data.storage} · ${data.ram}`} />
                   <Summary label="Condition"         value={`${data.condition} · ${CONDITION_GRADES.find(c => c.id === data.condition)?.label}`} />
                   <Summary label="Battery"           value={`${data.batteryHealth}%`} />
-                  <Summary label="Your price"        value={`$${data.price}`} />
-                  <Summary label="AI fair value"     value={data.valuation ? `$${data.valuation.fair}` : '—'} />
+                  <Summary label="Your price"        value={`RM ${data.price}`} />
+                  <Summary label="AI fair value"     value={data.valuation ? `RM ${data.valuation.fair}` : '—'} />
                   <Summary label="Sell method"       value={data.method} />
                   <Summary label="Photos"            value={`${data.imagePreviews.length} uploaded`} />
                 </div>

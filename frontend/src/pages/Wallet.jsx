@@ -107,7 +107,7 @@ export default function Wallet() {
     setTopping(true);
     try {
       const { data } = await api.post('/wallet/topup', { amount: Number(topupAmt), method: topupMethod });
-      toast.success(`Topped up $${topupAmt}. New balance: $${data.balance}`);
+      toast.success(`Topped up: RM ${topupAmt}. New balance: RM ${data.balance}`);
       setTopupOpen(false);
       await refreshUser();
       await load();
@@ -244,7 +244,7 @@ export default function Wallet() {
 
         <div className="text-right shrink-0">
           <p className={`font-heading text-lg font-bold ${side === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {side === 'in' ? '+' : '-'}${p.amount}
+            {side === 'in' ? '+' : '-'}RM {p.amount}
           </p>
 
           {/* ── BUYER side: only Refund button (no Received button) ── */}
@@ -312,7 +312,7 @@ export default function Wallet() {
               <WalletIcon className="h-6 w-6 text-teal-300" />
               <span className="text-[10px] uppercase tracking-[0.2em] text-teal-300">Available</span>
             </div>
-            <p className="mt-3 font-heading text-4xl font-bold">${(wallet.balance || 0).toLocaleString()}</p>
+            <p className="mt-3 font-heading text-4xl font-bold">RM {(wallet.balance || 0).toLocaleString()}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button data-testid="topup-quick" onClick={() => setTopupOpen(true)} className="rounded-full bg-teal-500 hover:bg-teal-600">
                 Add funds
@@ -326,7 +326,7 @@ export default function Wallet() {
         <div className="bento-card p-6">
           <Clock className="h-5 w-5 text-amber-600" />
           <p className="mt-3 text-xs uppercase tracking-wider text-muted-foreground">In escrow</p>
-          <p className="mt-1 font-heading text-2xl font-bold">${wallet.pendingEscrow || 0}</p>
+          <p className="mt-1 font-heading text-2xl font-bold">RM {wallet.pendingEscrow || 0}</p>
           <p className="mt-1 text-xs text-muted-foreground">Auto-released after 7-day protection window</p>
         </div>
       </div>
@@ -370,7 +370,7 @@ export default function Wallet() {
                           <p className="text-[10px] text-muted-foreground">{new Date(tx.createdAt).toLocaleString()}</p>
                         </div>
                         <p className={`font-heading text-lg font-bold ${positive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {positive ? '+' : '-'}${tx.amount}
+                          {positive ? '+' : '-'}RM {tx.amount}
                         </p>
                       </div>
                     );
@@ -445,7 +445,7 @@ export default function Wallet() {
                             </div>
                         }
                         <div className="flex-1 min-w-0">
-                          <p className="font-heading font-semibold">{r.title || `Refund — $${r.amount}`}</p>
+                          <p className="font-heading font-semibold">{r.title || `Refund — RM ${r.amount}`}</p>
                           <p className="line-clamp-2 text-xs text-muted-foreground mt-0.5">{r.reason}</p>
                           <p className="text-[10px] text-muted-foreground mt-1">
                             Opened {new Date(r.createdAt).toLocaleDateString()}
@@ -455,7 +455,7 @@ export default function Wallet() {
                           {/* Buyer sees red -$amount; seller sees neutral amount */}
                           <p className={`font-heading text-lg font-bold
                             ${isBuyer ? 'text-rose-600' : 'text-foreground'}`}>
-                            {isBuyer ? '-' : ''}${r.amount.toLocaleString()}
+                            {isBuyer ? '-' : ''}RM {r.amount.toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -547,7 +547,7 @@ export default function Wallet() {
                   onClick={() => setTopupAmt(v)}
                   className={`rounded-2xl border-2 p-3 text-center font-heading font-bold transition-colors ${topupAmt === v ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : 'border-border'}`}
                 >
-                  ${v}
+                  RM {v}
                 </button>
               ))}
             </div>
@@ -581,7 +581,7 @@ export default function Wallet() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setTopupOpen(false)}>Cancel</Button>
             <Button data-testid="submit-topup" onClick={submitTopup} disabled={topping} className="bg-navy hover:bg-navy-700">
-              {topping ? 'Processing…' : `Top up $${topupAmt}`}
+              {topping ? 'Processing…' : `Top up RM ${topupAmt}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -600,7 +600,7 @@ export default function Wallet() {
               )}
               <div>
                 <p className="font-heading font-semibold text-sm">{refundPayment.title}</p>
-                <p className="text-xs text-muted-foreground">${refundPayment.amount}</p>
+                <p className="text-xs text-muted-foreground">RM {refundPayment.amount}</p>
               </div>
             </div>
           )}

@@ -62,7 +62,7 @@ export default function DeviceValidation() {
 
       <div className="bento-card p-6">
         <h2 className="font-heading text-lg font-bold">Service fee</h2>
-        <p className="mt-1 text-sm text-muted-foreground">$25 flat fee per device. Refunded if your gadget sells within 7 days of validation.</p>
+        <p className="mt-1 text-sm text-muted-foreground">RM 25 flat fee per device. Refunded if your gadget sells within 7 days of validation.</p>
       </div>
 
       <h2 className="font-heading text-2xl font-bold">Your validation requests</h2>

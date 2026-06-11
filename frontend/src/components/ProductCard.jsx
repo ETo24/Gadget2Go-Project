@@ -52,8 +52,8 @@ export default function ProductCard({ product, view = 'grid' }) {
             </div>
             <div className="mt-auto flex items-end justify-between">
               <div>
-                <p className="font-heading text-xl font-bold text-foreground">${Number(product.price).toLocaleString()}</p>
-                <p className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 dark:text-teal-400"><Sparkles className="h-3 w-3" />AI fair ${product.aiFair}</p>
+                <p className="font-heading text-xl font-bold text-foreground">RM {Number(product.price).toLocaleString()}</p>
+                <p className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 dark:text-teal-400"><Sparkles className="h-3 w-3" />AI fair RM {product.aiFair}</p>
               </div>
               {goodDeal && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Good Deal</span>}
             </div>
@@ -93,8 +93,8 @@ export default function ProductCard({ product, view = 'grid' }) {
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div>
-              <p className="font-heading text-lg font-bold">${Number(product.price).toLocaleString()}</p>
-              <p className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 dark:text-teal-400"><Sparkles className="h-3 w-3" />Fair ${product.aiFair}</p>
+              <p className="font-heading text-lg font-bold">RM {Number(product.price).toLocaleString()}</p>
+              <p className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 dark:text-teal-400"><Sparkles className="h-3 w-3" />Fair RM {product.aiFair}</p>
             </div>
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{seller.rating}</span>
           </div>

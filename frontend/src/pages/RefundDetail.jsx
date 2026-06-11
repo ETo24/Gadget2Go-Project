@@ -210,7 +210,7 @@ export default function RefundDetail() {
             <p className="font-heading text-xl font-bold">{refund.title}</p>
             <p className="text-sm text-muted-foreground">
               Refund amount: <span className={`font-semibold ${isBuyer ? 'text-rose-600' : 'text-foreground'}`}>
-                {isBuyer ? '-' : ''}${refund.amount.toLocaleString()}
+                {isBuyer ? '-' : ''}RM {refund.amount.toLocaleString()}
               </span>
             </p>
             <p className="mt-1 text-xs text-muted-foreground">

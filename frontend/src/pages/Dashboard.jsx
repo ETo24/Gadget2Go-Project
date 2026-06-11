@@ -59,7 +59,7 @@ export default function Dashboard() {
         {[
           { l: 'My Listings', v: myListings.length, i: Package, c: 'bg-navy text-white' },
           { l: 'Saved Items', v: saved.length, i: Heart, c: 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400' },
-          { l: 'Wallet', v: `$${user?.walletBalance ?? 0}`, i: Wallet, c: 'bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400' },
+          { l: 'Wallet', v: `RM ${user?.walletBalance ?? 0}`, i: Wallet, c: 'bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400' },
           { l: 'Trust Score', v: `${user?.trustScore ?? 50}/100`, i: BadgeCheck, c: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' },
         ].map((s) => (
           <button key={s.l} onClick={() => s.l === 'Wallet' ? navigate('/wallet') : null} className="bento-card p-5 text-left" data-testid={`stat-${s.l}`}>
@@ -138,8 +138,8 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-heading font-bold">${p.price}</p>
-                  <p className="inline-flex items-center gap-1 text-[10px] text-teal-700"><Sparkles className="h-3 w-3" />Fair ${p.aiFair}</p>
+                  <p className="font-heading font-bold">RM {p.price}</p>
+                  <p className="inline-flex items-center gap-1 text-[10px] text-teal-700"><Sparkles className="h-3 w-3" />Fair RM {p.aiFair}</p>
                 </div>
               </div>
             ))}

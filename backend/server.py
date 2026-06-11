@@ -87,30 +87,43 @@ async def get_optional_user(authorization: Optional[str] = Header(None)) -> Opti
         return None
 
 
-async def compute_trust_score(user_id: str) -> Optional[int]:
-    """Dynamic trust score based on verifications, transactions, reviews, reports.
-    Returns None for admin accounts (no trust score). New users start at 0."""
+async def compute_trust_score(user_id: str):
     user = await db.users.find_one({"id": user_id})
     if not user:
-        return 0
+        return None
+
     if user.get("role") == "admin":
         return None
-    score = 0
-    if user.get("emailVerified"):
-        score += 10
-    if user.get("phoneVerified"):
-        score += 5
-    if user.get("kycStatus") == "approved":
-        score += 20
-    deals = await db.payments.count_documents({"sellerId": user_id, "status": {"$in": ["released", "completed"]}})
-    score += min(15, deals * 2)
-    reviews = await db.reviews.find({"sellerId": user_id}, {"_id": 0}).to_list(500)
+
+    breakdown = {
+        "kyc": 20 if user.get("kycStatus") == "approved" else 0,
+        "email": 10 if user.get("emailVerified") else 0,
+        "phone": 5 if user.get("phoneVerified") else 0,
+    }
+
+    deals = await db.payments.count_documents({
+        "sellerId": user_id,
+        "status": {"$in": ["released", "completed"]}
+    })
+    breakdown["transactions"] = min(15, deals * 2)
+
+    reviews = await db.reviews.find({"sellerId": user_id}).to_list(500)
     if reviews:
-        avg = sum(r["rating"] for r in reviews) / len(reviews)
-        score += int((avg - 3) * 4)
-    reports = await db.reports.count_documents({"targetId": user_id, "status": {"$ne": "dismissed"}})
-    score -= reports * 8
-    return max(0, min(100, score))
+        avg = sum(r.get("rating", 0) for r in reviews) / len(reviews)
+        breakdown["ratings"] = int((avg - 3) * 4)
+    else:
+        breakdown["ratings"] = 0
+
+    reports = await db.reports.count_documents({
+        "targetId": user_id,
+        "status": {"$ne": "dismissed"}
+    })
+    breakdown["reports"] = -reports * 8
+
+    return {
+        "score": max(0, min(100, sum(breakdown.values()))),
+        "breakdown": breakdown
+    }
 
 
 def trust_label(score: Optional[int]) -> Optional[str]:
@@ -351,7 +364,15 @@ async def verify_otp(body: VerifyOtpBody):
     await db.users.update_one({"email": body.email.lower()}, {"$set": {"emailVerified": True}})
     await db.otps.delete_one({"email": body.email.lower(), "purpose": "signup"})
     user["emailVerified"] = True
-    user["trustScore"] = await compute_trust_score(user["id"])
+    trust_data = await compute_trust_score(user["id"])
+    if trust_data:
+        user["trustScore"] = trust_data["score"]
+        user["trustBreakdown"] = trust_data["breakdown"]
+    else:
+        user["trustScore"] = 0
+        user["trustBreakdown"] = {
+            "kyc": 0, "transactions": 0, "ratings": 0, "reports": 0, "refunds": 0
+        }
     user["trustLabel"] = trust_label(user["trustScore"])
     return {"token": user["id"], "user": user}
 
@@ -369,7 +390,15 @@ async def login(body: LoginBody):
         raise HTTPException(403, "Email not verified. Please complete OTP verification.")
     user.pop("_id", None)
     user.pop("password", None)
-    user["trustScore"] = await compute_trust_score(user["id"])
+    trust_data = await compute_trust_score(user["id"])
+    if trust_data:
+        user["trustScore"] = trust_data["score"]
+        user["trustBreakdown"] = trust_data["breakdown"]
+    else:
+        user["trustScore"] = 0
+        user["trustBreakdown"] = {
+            "kyc": 0, "transactions": 0, "ratings": 0, "reports": 0, "refunds": 0
+        }
     user["trustLabel"] = trust_label(user["trustScore"])
     return {"token": user["id"], "user": user}
 
@@ -409,9 +438,19 @@ async def serialize_user(u: dict) -> dict:
     u = dict(u)
     u.pop("_id", None)
     u.pop("password", None)
-    u["trustScore"] = await compute_trust_score(u["id"])
+    trust_data = await compute_trust_score(u["id"])
+    if trust_data:
+        u["trustScore"] = trust_data["score"]
+        u["trustBreakdown"] = trust_data["breakdown"]
+    else:
+        u["trustScore"] = 0
+        u["trustBreakdown"] = {
+            "kyc": 0, "transactions": 0, "ratings": 0, "reports": 0, "refunds": 0
+        }
+
     u["trustLabel"] = trust_label(u["trustScore"])
-    u["dealsCompleted"] = await db.payments.count_documents({"sellerId": u["id"], "status": {"$in": ["released", "completed"]}})
+    u["dealsCompleted"] = await db.payments.count_documents(
+        {"sellerId": u["id"], "status": {"$in": ["released", "completed"]}})
     return u
 
 
@@ -452,13 +491,22 @@ async def enrich_listing(l: dict, viewer: Optional[dict] = None) -> dict:
     l.pop("_id", None)
     seller = await db.users.find_one({"id": l["sellerId"]}, {"_id": 0, "password": 0})
     if seller:
+        trust_data = await compute_trust_score(seller["id"])
+        seller_score = trust_data["score"] if trust_data else 0
+
         l["seller"] = {
-            "id": seller["id"], "name": seller["name"], "avatar": seller.get("avatar", ""),
-            "role": seller.get("role", "user"), "rating": seller.get("rating", 5.0),
-            "verified": seller.get("kycStatus") == "approved", "deals": await db.payments.count_documents({"sellerId": seller["id"], "status": {"$in": ["released", "completed"]}}),
-            "trustScore": await compute_trust_score(seller["id"]),
+            "id": seller["id"],
+            "name": seller["name"],
+            "avatar": seller.get("avatar", ""),
+            "role": seller.get("role", "user"),
+            "rating": seller.get("rating", 5.0),
+            "verified": seller.get("kycStatus") == "approved",
+            "deals": await db.payments.count_documents(
+                {"sellerId": seller["id"], "status": {"$in": ["released", "completed"]}}),
+            "trustScore": seller_score,  # Now a clean integer!
         }
-        l["seller"]["trustLabel"] = trust_label(l["seller"]["trustScore"])
+        l["seller"]["trustLabel"] = trust_label(seller_score)
+
     if viewer and viewer.get("lat") and l.get("lat"):
         l["distanceKm"] = round(haversine_km(viewer["lat"], viewer["lon"], l["lat"], l["lon"]), 1)
     return l
@@ -729,7 +777,7 @@ async def create_payment(body: PaymentCreate, user: dict = Depends(get_current_u
     await db.notifications.insert_one({
         "id": newid(), "userId": listing["sellerId"], "type": "payment",
         "title": "Payment received in escrow",
-        "text": f"${listing['price']:.0f} held in escrow for {listing['title']}",
+        "text": f"RM{listing['price']:.0f} held in escrow for {listing['title']}",
         "icon": "Wallet", "createdAt": now(), "unread": True,
     })
     return payment
@@ -768,7 +816,7 @@ async def maybe_auto_release(p: dict):
     await db.notifications.insert_one({
         "id": newid(), "userId": p["sellerId"], "type": "payment",
         "title": "Payment auto-released",
-        "text": f"${p['amount']:.0f} released after 7-day buyer protection period.",
+        "text": f"RM{p['amount']:.0f} released after 7-day buyer protection period.",
         "icon": "Wallet", "createdAt": now(), "unread": True,
     })
     p = dict(p)
@@ -837,7 +885,7 @@ async def confirm_receipt(payment_id: str, user: dict = Depends(get_current_user
     await db.notifications.insert_one({
         "id": newid(), "userId": p["sellerId"], "type": "payment",
         "title": "Payment released",
-        "text": f"${p['amount']:.0f} added to your wallet.",
+        "text": f"RM{p['amount']:.0f} added to your wallet.",
         "icon": "Wallet", "createdAt": now(), "unread": True,
     })
     return {"ok": True}
@@ -847,7 +895,7 @@ async def confirm_receipt(payment_id: str, user: dict = Depends(get_current_user
 @api.post("/wallet/topup")
 async def wallet_topup(body: TopupBody, user: dict = Depends(get_current_user)):
     if body.amount <= 0 or body.amount > 10000:
-        raise HTTPException(400, "Amount must be between $1 and $10,000")
+        raise HTTPException(400, "Amount must be between RM1 and RM10,000")
     await db.users.update_one({"id": user["id"]}, {"$inc": {"walletBalance": body.amount}})
     tx = {
         "id": newid(), "userId": user["id"], "type": "topup",
@@ -1026,7 +1074,7 @@ async def seller_respond_refund(refund_id: str, body: RefundRespond, user: dict 
         await db.notifications.insert_one({
             "id": newid(), "userId": r["buyerId"], "type": "refund",
             "title": "Refund accepted by seller",
-            "text": f"${r['amount']:.0f} will be returned to your wallet.",
+            "text": f"RM{r['amount']:.0f} will be returned to your wallet.",
             "icon": "RotateCcw", "createdAt": now(), "unread": True,
         })
         # Credit buyer wallet
@@ -1084,7 +1132,7 @@ async def escalate_refund(refund_id: str, body: RefundEscalate, user: dict = Dep
         await db.notifications.insert_one({
             "id": newid(), "userId": a["id"], "type": "refund",
             "title": "Refund escalated to admin",
-            "text": f"{user['name']} escalated a ${r['amount']:.0f} refund dispute.",
+            "text": f"{user['name']} escalated a RM{r['amount']:.0f} refund dispute.",
             "icon": "AlertCircle", "createdAt": now(), "unread": True,
         })
     return {"ok": True}
@@ -1388,7 +1436,7 @@ async def admin_refund_action(rid: str, body: AdminAction, _=Depends(require_adm
             await db.notifications.insert_one({
                 "id": newid(), "userId": uid, "type": "refund",
                 "title": "Admin ruled on refund",
-                "text": f"Refund of ${rec['amount']:.0f} approved by admin.",
+                "text": f"Refund of RM{rec['amount']:.0f} approved by admin.",
                 "icon": "ShieldCheck", "createdAt": now(), "unread": True,
             })
     elif body.action == "force_reject":

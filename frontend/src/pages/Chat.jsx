@@ -140,7 +140,7 @@ export default function Chat() {
               <img src={active.product.images?.[0]} alt="" className="h-12 w-12 rounded-xl object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-1 text-sm font-semibold">{active.product.title}</p>
-                <p className="text-xs text-muted-foreground">${active.product.price} · AI fair ${active.product.aiFair}</p>
+                <p className="text-xs text-muted-foreground">RM {active.product.price} · AI fair RM {active.product.aiFair}</p>
               </div>
               <ExternalLink className="h-4 w-4 text-muted-foreground" />
             </button>

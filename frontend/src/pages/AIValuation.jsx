@@ -99,15 +99,15 @@ export default function AIValuation() {
               {!scanning && result && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                   <p className="text-xs font-bold uppercase tracking-[0.25em] text-teal-300">AI Estimate</p>
-                  <p className="mt-2 font-heading text-5xl font-bold sm:text-6xl">${result.fair.toLocaleString()}</p>
+                  <p className="mt-2 font-heading text-5xl font-bold sm:text-6xl">RM {result.fair.toLocaleString()}</p>
                   <div className="mt-3 flex items-center gap-3 text-sm text-white/80">
                     <div className="h-2 w-32 overflow-hidden rounded-full bg-white/15"><div className="h-full bg-teal-400" style={{ width: `${result.confidence}%` }} /></div>
                     <span>{result.confidence}% confidence</span>
                   </div>
                   <div className="mt-6 grid grid-cols-3 gap-3">
-                    <Stat label="Dealer low" value={`$${result.dealerLow}`} />
-                    <Stat label="Dealer high" value={`$${result.dealerHigh}`} />
-                    <Stat label="Suggested" value={`$${result.recommended}`} highlight />
+                    <Stat label="Dealer low" value={`RM ${result.dealerLow}`} />
+                    <Stat label="Dealer high" value={`RM ${result.dealerHigh}`} />
+                    <Stat label="Suggested" value={`RM ${result.recommended}`} highlight />
                   </div>
                   <div className="mt-6">
                     <div className="flex items-center justify-between text-xs text-white/70"><span>Demand meter</span><span>{result.demand}/100</span></div>

@@ -88,7 +88,7 @@ export default function SmartMatch() {
           <h2 className="font-heading text-lg font-bold">Preferences</h2>
           <div className="mt-5 space-y-5">
             <div className="space-y-2">
-              <Label>Budget · <span className="font-semibold text-foreground">${form.budget}</span></Label>
+              <Label>Budget · <span className="font-semibold text-foreground">RM {form.budget}</span></Label>
               <Slider value={[form.budget]} min={100} max={3000} step={50} onValueChange={(v) => update('budget', v[0])} data-testid="match-budget" />
             </div>
             <div className="space-y-2">
@@ -164,7 +164,7 @@ export default function SmartMatch() {
                       <div className="w-48">
                         <img src={r.images?.[0]} alt="" className="mb-2 h-24 w-full rounded-lg object-cover" />
                         <p className="text-sm font-bold">{r.title}</p>
-                        <p className="text-xs">${r.price} · {r.distanceKm} km away</p>
+                        <p className="text-xs">RM {r.price} · {r.distanceKm} km away</p>
                         <p className="text-xs text-teal-700">Match {r.matchScore}%</p>
                         <a href={`/buy/${r.id}`} className="mt-2 inline-block rounded bg-navy px-2 py-1 text-xs text-white">View →</a>
                       </div>

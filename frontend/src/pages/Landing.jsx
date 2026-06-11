@@ -104,7 +104,7 @@ export default function Landing() {
               <div className="absolute inset-0 bg-gradient-to-t from-navy/90 via-navy/30 to-transparent" />
               <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 6, repeat: Infinity }} className="absolute left-5 top-5 rounded-2xl bg-white/95 p-4 shadow-2xl backdrop-blur">
                 <div className="flex items-center gap-2 text-xs font-semibold text-teal-700"><Sparkles className="h-4 w-4" /> AI Fair Price</div>
-                <p className="mt-1 font-heading text-3xl font-bold text-navy">$1,050</p>
+                <p className="mt-1 font-heading text-3xl font-bold text-navy">RM 1,050</p>
                 <p className="text-xs text-muted-foreground">iPhone 15 Pro · 256GB</p>
               </motion.div>
               <motion.div animate={{ y: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity, delay: 0.6 }} className="absolute bottom-5 right-5 rounded-2xl bg-teal-500 p-4 text-white shadow-2xl">
@@ -161,8 +161,8 @@ export default function Landing() {
                 <div className="p-4">
                   <p className="line-clamp-1 font-heading font-semibold">{p.title}</p>
                   <div className="mt-2 flex items-end justify-between">
-                    <p className="font-heading text-xl font-bold">${p.price}</p>
-                    <p className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700"><Sparkles className="h-3 w-3" />Fair ${p.aiFair}</p>
+                    <p className="font-heading text-xl font-bold">RM {p.price}</p>
+                    <p className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700"><Sparkles className="h-3 w-3" />Fair RM {p.aiFair}</p>
                   </div>
                 </div>
               </button>
@@ -179,7 +179,7 @@ export default function Landing() {
             <div className="absolute inset-0 grid place-items-center">
               <div className="rounded-3xl border border-teal-400/30 bg-navy-900/60 p-8 backdrop-blur-xl">
                 <p className="text-xs font-bold uppercase tracking-[0.25em] text-teal-300">AI Valuation</p>
-                <p className="mt-3 font-heading text-5xl font-bold text-white">$1,050</p>
+                <p className="mt-3 font-heading text-5xl font-bold text-white">RM 1,050</p>
                 <div className="mt-3 flex items-center gap-3 text-sm text-white/80">
                   <div className="h-2 w-32 overflow-hidden rounded-full bg-white/20">
                     <div className="h-full w-[88%] bg-teal-400" />
