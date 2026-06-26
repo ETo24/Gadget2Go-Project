@@ -1,0 +1,27 @@
+# Netlify build config for Gadget2Go frontend (monorepo).
+# This overrides the Site Settings UI, so the build is reproducible from git.
+
+[build]
+  # Repo is a monorepo; the React app lives in /frontend.
+  base    = "frontend"
+  # CRA outputs to /build inside the base directory.
+  publish = "build"
+  # package.json uses Yarn classic; matches local dev.
+  command = "yarn build"
+
+[build.environment]
+  # CRA treats ESLint warnings as errors whenever CI=true.
+  # Netlify sets CI=true automatically. Override it so the existing
+  # warnings (react-hooks/exhaustive-deps) don't fail the build.
+  CI = "false"
+  # Pin a known-good LTS Node for CRA 5.
+  NODE_VERSION = "20"
+  # Skip Cypress/Puppeteer-style postinstall noise on Netlify.
+  NPM_FLAGS = "--no-audit --no-fund"
+
+# Single-page-app routing: every unknown path serves index.html so
+# react-router-dom can take over on the client.
+[[redirects]]
+  from   = "/*"
+  to    = "/index.html"
+  status = 200

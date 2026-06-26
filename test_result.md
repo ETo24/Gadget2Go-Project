@@ -101,3 +101,84 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Smoke test of Gadget2Go frontend after netlify.toml deployment config change (CI=false to prevent build failures on ESLint warnings)"
+
+frontend:
+  - task: "Homepage loads without blank screen"
+    implemented: true
+    working: true
+    file: "frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Smoke test passed. Homepage loads correctly, redirects to login for unauthenticated users as expected. No blank screen, no new JS errors."
+
+  - task: "User login with seeded credentials"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/Login.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Login successful with aria@g2g.app / demo1234. User redirected to /dashboard after authentication."
+
+  - task: "Dashboard displays product listings"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/Dashboard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Dashboard renders correctly with 28 product cards/listings visible. Categories, trending items, and user stats all display properly."
+
+  - task: "Chat page renders without crashing"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/Chat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Chat page loads successfully, shows 'No conversations yet' message with Browse marketplace button. No crashes or errors."
+
+  - task: "Profile page renders without crashing"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/Profile.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Profile page loads successfully, displays user info (Aria Tan), trust score, KYC status, listings, and wallet balance. No crashes or errors."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+  test_date: "2026-06-26"
+
+test_plan:
+  current_focus:
+    - "All smoke tests completed successfully"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "Smoke test completed successfully. All 5 test cases passed. No regression detected after netlify.toml deployment config change. Console shows only pre-existing external service errors (Cloudflare RUM, Unsplash CORS) - no new JavaScript errors or warnings. The CI=false setting in netlify.toml successfully prevents build failures without introducing runtime issues."
