@@ -305,19 +305,19 @@ export default function Wallet() {
 
       {/* Balance cards */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="bento-card relative overflow-hidden bg-navy p-6 text-white sm:col-span-2">
+        <div className="bento-card relative overflow-hidden bg-card dark:bg-navy p-6 text-foreground dark:text-white sm:col-span-2">
           <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-teal-500/30 blur-3xl" />
           <div className="relative">
             <div className="flex items-center justify-between">
               <WalletIcon className="h-6 w-6 text-teal-300" />
               <span className="text-[10px] uppercase tracking-[0.2em] text-teal-300">Available</span>
             </div>
-            <p className="mt-3 font-heading text-4xl font-bold">RM {(wallet.balance || 0).toLocaleString()}</p>
+            <p className="mt-3 font-heading text-4xl font-bold text-foreground dark:text-white">RM {(wallet.balance || 0).toLocaleString()}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button data-testid="topup-quick" onClick={() => setTopupOpen(true)} className="rounded-full bg-teal-500 hover:bg-teal-600">
                 Add funds
               </Button>
-              <Button variant="outline" className="rounded-full border-white/30 bg-transparent text-white hover:bg-white/10">
+              <Button variant="outline" className="rounded-full border-border text-foreground hover:bg-muted dark:border-white/30 dark:text-white dark:hover:bg-white/10">
                 Withdraw
               </Button>
             </div>
