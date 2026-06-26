@@ -101,11 +101,11 @@ export default function Checkout() {
             <Row l="Delivery" v="RM 0 (G2G Express)" />
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <p className="font-heading text-base font-bold">Total</p>
-              <p className="font-heading text-2xl font-bold">${Number(product.price).toLocaleString()}</p>
+              <p className="font-heading text-2xl font-bold">RM{Number(product.price).toLocaleString()}</p>
             </div>
           </div>
           <Button onClick={pay} disabled={submitting} data-testid="confirm-pay" className="mt-6 h-12 w-full rounded-full bg-navy hover:bg-navy-700">
-            {submitting ? 'Processing…' : (<>Pay ${Number(product.price).toLocaleString()} <ArrowRight className="ml-2 h-4 w-4" /></>)}
+            {submitting ? 'Processing…' : (<>Pay RM{Number(product.price).toLocaleString()} <ArrowRight className="ml-2 h-4 w-4" /></>)}
           </Button>
           <p className="mt-3 text-center text-xs text-muted-foreground">By paying you agree to G2G's terms and buyer-protection policy.</p>
         </div>

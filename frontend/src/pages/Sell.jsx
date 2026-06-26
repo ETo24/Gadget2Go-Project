@@ -333,7 +333,7 @@ export default function Sell() {
                     </p>
                   )}
                   <div className="mt-4 relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xl font-bold text-muted-foreground">RM</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xl font-bold text-muted-foreground"></span>
                     <Input
                       data-testid="sell-price"
                       type="number"
